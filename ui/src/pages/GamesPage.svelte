@@ -82,7 +82,7 @@
     border: 1px solid var(--line-2); background: var(--panel); color: var(--text); font: inherit; outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .search:focus { border-color: rgba(124, 92, 255, 0.6); box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.18); }
+  .search:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
   .spin :global(svg) { animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 

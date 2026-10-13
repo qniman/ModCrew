@@ -16,6 +16,11 @@ button, exact rollback. Friends are not PC-savvy: UI text must be simple, everyt
 |---|---|
 | `src/ModCrew/MainForm.cs` | Window, WebView2 setup; UI is embedded (`wwwroot/*` resources) and served on `app.modcrew` via WebResourceRequested; folder hosts `packs.modcrew`, `steam.modcrew` (Steam librarycache) |
 | `Program.cs`, `Shell.cs` | Single instance (mutex + named pipe hands files to the running window), `.modcrew` association in HKCU (re-pointed to the running exe on every start) |
+| `Update/Updater.cs` | GitHub Releases (`qniman/ModCrew`): latest release API, newer `ModCrew.exe` asset (sha256 from asset `digest` or `.sha256`), swap by renaming the running exe to `.old`; dev builds (`\bin\`) never update |
+| `Update/Setup.cs` | Per-user installer (exe named `*Setup*` → setup mode, `#setup` UI page), shortcuts via IShellLink, HKCU Uninstall entry, `--uninstall` (MessageBox flow) |
+| `Settings.cs` | settings.json: game paths, `AutoUpdate`, `Appearance` (theme dark/light/system, accent preset, scale = WebView zoom, animations) |
+| `ui/src/lib/theme.js`, `app.css` | Theme tokens: `--fg-rgb` overlays, accent via `color-mix`, `.dark-island` for blocks over game art, `.reduce-motion` |
+| `build-final.ps1`, `.github/workflows/release.yml` | Local: refresh `..\App`, `..\Installer`. CI: tag `v*` → release with ModCrew-Setup.exe, ModCrew.exe, .sha256 |
 | `Properties/PublishProfiles/Friends.pubxml` | `dotnet publish src/ModCrew -p:PublishProfile=Friends` → one self-contained `publish\ModCrew.exe` |
 | `Bridge.cs` | UI↔host messages `{id, method, params}` → `{id, ok, result/error}`, events `{event, data}`, `Ask()` confirm in UI |
 | `Api.cs` | All bridge methods (`games.*`, `packs.*`, `install.*`, `shell.openUrl`) |
@@ -34,6 +39,11 @@ button, exact rollback. Friends are not PC-savvy: UI text must be simple, everyt
 - One installed pack per game; reinstall = uninstall old + install new.
 - Bridge: sync handlers via `On`, async via `OnAsync` (don't merge them — a lambda returning null picked the Task overload).
 - Csproj builds the UI (`npm run build`) and embeds `ui/dist/**` as `wwwroot/…` resources; `-p:SkipUi=true` to skip (then the exe has no UI).
+
+## Where things are
+- This repo lives in `C:\Users\qsi\Desktop\ModCrewFinal\Source` (moved from E:\Projects\ModCrew on 2026-10-13; the old copy is not used).
+  `..\App` and `..\Installer` are build outputs (`build-final.ps1`). Releases: bump `<Version>` in the csproj, tag `vX.Y.Z`, push.
+- Colours in components: use tokens (`var(--text)`, `rgb(var(--fg-rgb) / a)`, `color-mix(in srgb, var(--accent) N%, transparent)`), never dark-only literals — the light theme depends on it.
 
 ## Decisions
 - Mods with their own installer (BeamMP…): wizard action «Запустить установщик» → extract + `run`. Not rolled back; friends are told on the pack page, in the run prompt and in the uninstall prompt.

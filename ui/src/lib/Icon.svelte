@@ -19,7 +19,6 @@
     alert: 'M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0ZM12 9v4M12 17h.01',
     x: 'M18 6 6 18M6 6l12 12',
     undo: 'M3 7v6h6M21 17a9 9 0 0 0-15-6.7L3 13',
-    puzzle: 'M19.4 14.9c-.3.6.1 1.4.8 1.4h.3a1.5 1.5 0 0 1 0 3H17a1 1 0 0 1-1-1v-1.2c0-.6-.7-1-1.2-.7a2 2 0 1 1 0-3.4c.5.3 1.2-.1 1.2-.7V10a1 1 0 0 0-1-1h-2.3c-.6 0-1-.7-.7-1.2a2 2 0 1 0-3.4 0c.3.5-.1 1.2-.7 1.2H5.5a1.5 1.5 0 0 0-1.5 1.5v2.3c0 .6.7 1 1.2.7a2 2 0 1 1 0 3.4c-.5-.3-1.2.1-1.2.7v2.4A1.5 1.5 0 0 0 5.5 21h12',
     user: 'M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z',
     copy: 'M20 9h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2ZM5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
     edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z',
@@ -39,5 +38,11 @@
 
 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-  <path d={paths[name] ?? ''} />
+  {#if name === 'puzzle'}
+    <!-- The app logo's piece (same shape as Assets/icon.svg), filled. -->
+    <path fill="currentColor" stroke="none" transform="translate(12 12) scale(0.4) translate(-52.25 -50.75)"
+      d="M30 38 H43 A8.5 8.5 0 1 1 57 38 H66 a4 4 0 0 1 4 4 V50 A8.5 8.5 0 1 1 70 64 V72 a4 4 0 0 1 -4 4 H30 a4 4 0 0 1 -4 -4 V42 a4 4 0 0 1 4 -4 Z" />
+  {:else}
+    <path d={paths[name] ?? ''} />
+  {/if}
 </svg>

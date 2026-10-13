@@ -1,5 +1,19 @@
 # Manual test checklist
 
+## Installer & updates
+- [ ] `Installer\ModCrew-Setup.exe`: setup window (no admin prompt), «Установить» → «Готово»; Start menu shortcut, optional desktop one, `.modcrew` opens the installed app, entry in «Параметры → Приложения» with the version.
+- [ ] Running setup again: «Уже установлена версия …» → reinstall over it, also while ModCrew is open.
+- [ ] «Удалить» in «Приложения»: asks to close ModCrew if open, asks about data, removes shortcuts, folder, association.
+- [ ] With a newer GitHub release: sidebar shows «Новая версия» / auto-downloads; «Перезапустить» starts the new version (Settings shows it), `ModCrew.exe.old` is gone after that start.
+- [ ] Auto-update off: only the «Новая версия → Обновить» card. «Проверить» in Settings: «последняя версия» / «есть новая».
+- [ ] Offline: no errors shown on start.
+
+## Settings
+- [ ] Theme dark / light / «Как в Windows» (follows Windows switching live), title bar colour follows.
+- [ ] Accent colours recolour buttons, logo, toggles, nav; pack hero stays readable in light theme.
+- [ ] Scale 90–125% applies at once and after restart; Ctrl+wheel does not change it.
+- [ ] Animations off: no fades/slides.
+
 ## Friends' side
 - [ ] `publish\ModCrew.exe` runs on a PC without .NET (single file, icon in Explorer/taskbar).
 - [ ] After the first start, double-clicking a `.modcrew` opens ModCrew on that pack («Сборка … добавлена»); `.modcrew` files show the ModCrew icon.

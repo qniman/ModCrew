@@ -47,7 +47,7 @@
 
 {#if view}
   <div class="page">
-    <section class="hero">
+    <section class="hero dark-island">
       <div class="bg">
         <Cover urls={[view.coverUrl, view.game.images.hero, steamCdn(view.game.appId, 'library_hero.jpg'), view.game.images.header]} label={view.pack.name} />
       </div>
@@ -172,7 +172,7 @@
     position: absolute; inset: 0;
     background:
       linear-gradient(90deg, rgba(12, 13, 18, 0.92) 0%, rgba(12, 13, 18, 0.55) 55%, rgba(12, 13, 18, 0.2) 100%),
-      linear-gradient(0deg, var(--bg) 0%, rgba(12, 13, 18, 0) 60%);
+      linear-gradient(0deg, var(--page-bg) 0%, transparent 60%);
   }
   .back { position: absolute; top: 20px; left: 28px; z-index: 2; color: var(--text); background: rgba(12, 13, 18, 0.4); backdrop-filter: blur(10px); }
   .hero-content { position: relative; z-index: 1; padding: 80px 40px 30px; max-width: 900px; }
@@ -194,14 +194,14 @@
   .progress.done { border-color: rgba(52, 211, 153, 0.35); }
   .progress.failed { border-color: rgba(248, 113, 113, 0.35); }
   .p-head { display: flex; align-items: center; gap: 14px; }
-  .p-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: #a993ff; flex: none; }
+  .p-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); flex: none; }
   .done .p-icon { background: rgba(52, 211, 153, 0.14); color: var(--ok); }
   .failed .p-icon { background: rgba(248, 113, 113, 0.14); color: var(--danger); }
   .p-text { flex: 1; min-width: 0; }
   .p-title { font-weight: 650; }
   .p-sub { color: var(--muted); font-size: 13px; white-space: pre-line; overflow-wrap: anywhere; }
   .p-count { color: var(--faint); font-variant-numeric: tabular-nums; font-weight: 600; }
-  .bar { height: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.07); margin-top: 14px; overflow: hidden; }
+  .bar { height: 6px; border-radius: 6px; background: rgb(var(--fg-rgb) / 0.07); margin-top: 14px; overflow: hidden; }
   .bar div { height: 100%; border-radius: 6px; background: var(--grad); transition: width 0.35s var(--ease); position: relative; overflow: hidden; }
   .bar div::after {
     content: ''; position: absolute; inset: 0;
@@ -212,7 +212,7 @@
   .done .bar div::after, .failed .bar div::after { display: none; }
   .failed .bar div { background: var(--danger); opacity: 0.6; }
   @keyframes shine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-  .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(169, 147, 255, 0.25); border-top-color: #a993ff; animation: spin 0.8s linear infinite; }
+  .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent-text); animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   details { margin-top: 12px; color: var(--muted); font-size: 12.5px; }
   summary { cursor: pointer; color: var(--faint); }
@@ -220,7 +220,7 @@
 
   .columns { display: grid; grid-template-columns: 1fr 320px; gap: 28px; padding: 28px 40px 0; align-items: start; }
   h2 { font-size: 18px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-  h2 span { font-size: 12px; color: var(--muted); background: rgba(255, 255, 255, 0.07); padding: 1px 8px; border-radius: 99px; }
+  h2 span { font-size: 12px; color: var(--muted); background: rgb(var(--fg-rgb) / 0.07); padding: 1px 8px; border-radius: 99px; }
 
   .mod {
     display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin-bottom: 8px;
@@ -229,11 +229,11 @@
   }
   .num {
     width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center;
-    background: rgba(255, 255, 255, 0.05); color: var(--muted); font-weight: 700; font-size: 13px;
+    background: rgb(var(--fg-rgb) / 0.05); color: var(--muted); font-weight: 700; font-size: 13px;
   }
   .mod-body { flex: 1; min-width: 0; }
   .mod-title { font-weight: 600; display: flex; align-items: center; gap: 8px; }
-  .ver { font-size: 11.5px; color: var(--faint); font-weight: 600; background: rgba(255, 255, 255, 0.05); padding: 0 7px; border-radius: 6px; }
+  .ver { font-size: 11.5px; color: var(--faint); font-weight: 600; background: rgb(var(--fg-rgb) / 0.05); padding: 0 7px; border-radius: 6px; }
   .mod-desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
 
   .side { display: flex; flex-direction: column; gap: 14px; }

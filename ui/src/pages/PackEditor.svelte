@@ -297,7 +297,7 @@
   .page { min-height: 100%; }
   .topbar {
     position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px;
-    padding: 12px 28px; background: rgba(12, 13, 18, 0.85); backdrop-filter: blur(14px);
+    padding: 12px 28px; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--line);
   }
   .tb-title { display: flex; align-items: center; gap: 8px; margin-right: auto; min-width: 0; }
@@ -330,7 +330,7 @@
   }
   textarea { height: auto; padding: 9px 11px; resize: vertical; line-height: 1.5; }
   select { cursor: pointer; }
-  input:focus, textarea:focus, select:focus { border-color: rgba(124, 92, 255, 0.6); box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15); }
+  input:focus, textarea:focus, select:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
   .pid { font-size: 12px; color: var(--faint); }
   .pid span { font-family: 'Cascadia Mono', Consolas, monospace; user-select: text; }
 
@@ -344,7 +344,7 @@
 
   .mods-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
   h2 { font-size: 20px; display: flex; align-items: center; gap: 8px; }
-  h2 span { font-size: 12px; color: var(--muted); background: rgba(255, 255, 255, 0.07); padding: 1px 8px; border-radius: 99px; }
+  h2 span { font-size: 12px; color: var(--muted); background: rgb(var(--fg-rgb) / 0.07); padding: 1px 8px; border-radius: 99px; }
   .add { display: flex; gap: 8px; }
 
   .mod {
@@ -352,18 +352,18 @@
     transition: border-color 0.15s, box-shadow 0.15s; animation: fade-up 0.25s var(--ease);
   }
   .mod.open { border-color: var(--line-2); }
-  .mod.over { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.2); }
+  .mod.over { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
   .mod-head { display: flex; align-items: center; gap: 4px; padding: 8px 8px 8px 6px; }
   .grip { width: 28px; height: 36px; display: grid; place-items: center; color: var(--faint); cursor: grab; border-radius: 8px; }
-  .grip:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+  .grip:hover { color: var(--text); background: rgb(var(--fg-rgb) / 0.04); }
   .mh-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: none; cursor: pointer; text-align: left; padding: 6px 4px; }
-  .mnum { width: 26px; height: 26px; border-radius: 8px; flex: none; display: grid; place-items: center; background: rgba(255, 255, 255, 0.05); color: var(--muted); font-weight: 700; font-size: 12px; }
+  .mnum { width: 26px; height: 26px; border-radius: 8px; flex: none; display: grid; place-items: center; background: rgb(var(--fg-rgb) / 0.05); color: var(--muted); font-weight: 700; font-size: 12px; }
   .mname { font-weight: 650; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ver { font-size: 11.5px; color: var(--faint); font-weight: 600; background: rgba(255, 255, 255, 0.05); padding: 1px 7px; border-radius: 6px; flex: none; }
+  .ver { font-size: 11.5px; color: var(--faint); font-weight: 600; background: rgb(var(--fg-rgb) / 0.05); padding: 1px 7px; border-radius: 6px; flex: none; }
   .pcount { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; color: var(--warn); }
   .pcount.err { color: var(--danger); }
   .t { width: 32px; height: 32px; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
-  .t:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+  .t:hover { background: rgb(var(--fg-rgb) / 0.06); color: var(--text); }
   .chev :global(svg) { transition: transform 0.2s var(--ease); }
   .open .chev :global(svg) { transform: rotate(180deg); }
 
@@ -372,7 +372,7 @@
   .steps { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
   .add-step { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 4px; }
   .chip {
-    --c: #a993ff;
+    --c: var(--accent-text);
     display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border-radius: 8px;
     border: 1px dashed color-mix(in srgb, var(--c) 45%, transparent); background: transparent;
     color: var(--c); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s;
@@ -382,7 +382,7 @@
 
   .empty {
     display: flex; flex-direction: column; align-items: center; text-align: center; padding: 50px 30px;
-    border: 1px dashed var(--line-2); border-radius: var(--radius-lg); color: #a993ff;
+    border: 1px dashed var(--line-2); border-radius: var(--radius-lg); color: var(--accent-text);
   }
   .empty h3 { color: var(--text); margin: 12px 0 6px; font-size: 17px; }
   .empty p { color: var(--muted); max-width: 420px; margin: 0 0 20px; line-height: 1.6; }

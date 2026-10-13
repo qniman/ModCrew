@@ -92,7 +92,7 @@
   .tools { display: flex; gap: 2px; opacity: 0.55; transition: opacity 0.15s; }
   .step:hover .tools, .step.open .tools { opacity: 1; }
   .t { width: 30px; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
-  .t:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+  .t:hover:not(:disabled) { background: rgb(var(--fg-rgb) / 0.06); color: var(--text); }
   .t:disabled { opacity: 0.3; cursor: default; }
   .t.del:hover { color: var(--danger); }
   .chev :global(svg) { transition: transform 0.2s var(--ease); }
@@ -109,7 +109,7 @@
     color: var(--text); font: inherit; font-size: 13px; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
   }
   textarea { height: auto; padding: 8px 10px; resize: vertical; }
-  input:focus, textarea:focus { border-color: rgba(124, 92, 255, 0.6); box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15); }
+  input:focus, textarea:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
   input.invalid { border-color: rgba(248, 113, 113, 0.55); }
   .mono { font-family: 'Cascadia Mono', Consolas, monospace; font-size: 12.5px; }
   .check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding-top: 4px; }

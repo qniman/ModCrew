@@ -26,7 +26,7 @@ public sealed class PackManifest
             throw new InvalidDataException($"Сборка сделана в более новой версии ModCrew (формат {Format}). Обнови приложение.");
         if (!IdPattern.IsMatch(Id))
             throw new InvalidDataException($"Неверный id сборки «{Id}»: только a-z, 0-9, точка, дефис, подчёркивание.");
-        if (string.IsNullOrWhiteSpace(Name)) throw new InvalidDataException("У сборки нет названия.");
+        if (!Name.Any(char.IsLetterOrDigit)) throw new InvalidDataException("У сборки нет названия.");
         if (Game.SteamAppId <= 0) throw new InvalidDataException("В сборке не указана игра (game.steamAppId).");
         if (Cover != null && (Path.IsPathRooted(Cover) || Cover.Contains("..")))
             throw new InvalidDataException("cover должен быть путём внутри сборки.");

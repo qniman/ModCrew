@@ -143,7 +143,7 @@
 
   .art { position: relative; aspect-ratio: 16 / 8; overflow: hidden; }
   .art :global(img) { transition: transform 0.6s var(--ease), opacity 0.4s; }
-  .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0) 40%, rgba(21, 24, 33, 0.95) 100%); }
+  .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0) 40%, color-mix(in srgb, var(--panel) 95%, transparent) 100%); }
   .game-logo {
     position: absolute; left: 16px; bottom: 12px; max-width: 46%; max-height: 42%;
     object-fit: contain; object-position: left bottom; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
@@ -163,11 +163,11 @@
   .empty { text-align: center; padding: 80px 20px; display: flex; flex-direction: column; align-items: center; }
   .empty-art {
     width: 96px; height: 96px; border-radius: 28px; display: grid; place-items: center; margin-bottom: 22px;
-    background: var(--accent-soft); color: #a993ff; border: 1px solid rgba(124, 92, 255, 0.3);
-    box-shadow: 0 0 60px rgba(124, 92, 255, 0.25);
+    background: var(--accent-soft); color: var(--accent-text); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    box-shadow: 0 0 60px color-mix(in srgb, var(--accent) 25%, transparent);
   }
   .empty h2 { font-size: 22px; margin-bottom: 8px; }
   .empty p { color: var(--muted); margin: 0 0 26px; max-width: 460px; line-height: 1.6; }
   .empty-actions { display: flex; gap: 10px; }
-  code { background: rgba(255, 255, 255, 0.08); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+  code { background: rgb(var(--fg-rgb) / 0.08); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
 </style>

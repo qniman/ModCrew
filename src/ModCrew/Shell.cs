@@ -13,11 +13,13 @@ static class Shell
     /// Makes double-clicking a .modcrew file open it in ModCrew (per user, no admin rights).
     /// Points at whichever ModCrew.exe ran last, so moving the exe just works after one start.
     /// </summary>
-    public static void RegisterFileType()
+    public static void RegisterFileType(string? exePath = null)
     {
+        // A build from source must not steal .modcrew from the installed app.
+        if (exePath == null && Update.Updater.IsDevBuild && File.Exists(Update.Setup.InstalledExe)) return;
         try
         {
-            var exe = Environment.ProcessPath ?? Application.ExecutablePath;
+            var exe = exePath ?? Environment.ProcessPath ?? Application.ExecutablePath;
             var command = $"\"{exe}\" \"%1\"";
             using var classes = Registry.CurrentUser.CreateSubKey(@"Software\Classes");
             using (var cmd = classes.OpenSubKey(@"ModCrew.Pack\shell\open\command"))
@@ -36,6 +38,15 @@ static class Shell
         {
             // Not fatal: the player can still use «Добавить сборку».
         }
+    }
+
+    public static void UnregisterFileType()
+    {
+        using var classes = Registry.CurrentUser.OpenSubKey(@"Software\Classes", writable: true);
+        if (classes == null) return;
+        classes.DeleteSubKeyTree(".modcrew", throwOnMissingSubKey: false);
+        classes.DeleteSubKeyTree("ModCrew.Pack", throwOnMissingSubKey: false);
+        SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
     }
 
     /// <summary>Hands command-line files to an already running ModCrew. False if none is running.</summary>

@@ -60,6 +60,11 @@ const packs = [
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const mockFiles = {};
+const mockSettings = {
+  autoUpdate: true, appearance: { theme: 'dark', accent: 'violet', scale: 1, animations: true },
+  version: '0.2.0', devBuild: false, installed: true, exePath: 'C:\\Users\\you\\AppData\\Local\\Programs\\ModCrew\\ModCrew.exe',
+  dataDir: 'C:\\Users\\you\\AppData\\Local\\ModCrew', releasesPage: 'https://github.com/qniman/ModCrew/releases', update: null,
+};
 const mockZip = (extra) => ({
   size: 2_457_600, kind: 'zip', fileCount: 14,
   topLevel: ['BetterSatsuma-2.1'],
@@ -98,7 +103,19 @@ export const mock = {
   async call(method, params, emit) {
     await wait(60);
     switch (method) {
-      case 'app.info': return { version: '0.1.0-dev', dataDir: 'C:\\Users\\you\\AppData\\Local\\ModCrew', steamFound: true };
+      case 'app.info': return { version: '0.2.0', dataDir: 'C:\\Users\\you\\AppData\\Local\\ModCrew', steamFound: true, mode: location.hash === '#setup' ? 'setup' : 'app' };
+      case 'settings.get': return mockSettings;
+      case 'settings.set':
+        if ('autoUpdate' in params) mockSettings.autoUpdate = params.autoUpdate;
+        if (params.appearance) mockSettings.appearance = params.appearance;
+        return mockSettings;
+      case 'update.check': await wait(700); return { status: 'available', version: '0.3.0' };
+      case 'update.apply':
+        for (let d = 0; d <= 10; d++) { emit('update.progress', { done: d, total: 10 }); await wait(120); }
+        emit('update.ready', { version: '0.3.0', notes: '', pageUrl: '' });
+        return { version: '0.3.0' };
+      case 'setup.info': return { version: '0.2.0', installedVersion: null, dir: 'C:\\Users\\you\\AppData\\Local\\Programs\\ModCrew', desktop: true };
+      case 'setup.install': await wait(900); return null;
       case 'games.list':
         return games.map((g) => {
           const inst = packs.find((p) => p.pack.game.steamAppId === g.appId && p.installed);

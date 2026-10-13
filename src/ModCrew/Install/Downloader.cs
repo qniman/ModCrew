@@ -6,7 +6,8 @@ namespace ModCrew.Install;
 /// <summary>HTTPS downloads with progress, sha256 and a cache keyed by hash.</summary>
 public static class Downloader
 {
-    static readonly HttpClient Http = CreateHttp();
+    /// <summary>Shared client (ModCrew user agent; GitHub's API requires one).</summary>
+    public static readonly HttpClient Http = CreateHttp();
 
     static HttpClient CreateHttp()
     {

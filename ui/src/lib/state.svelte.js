@@ -1,4 +1,5 @@
 import { call, callWithFiles, on } from './api.js';
+import { applyAppearance } from './theme.js';
 
 /** Global UI state. Components read it directly; actions below change it. */
 export const app = $state({
@@ -15,6 +16,10 @@ export const app = $state({
   /** {token, title, text, okLabel} — confirm dialog asked by the host or by the UI */
   ask: null,
   toasts: [],
+  /** settings.get result: autoUpdate, appearance, version, devBuild, installed, … */
+  settings: null,
+  /** New version: {version, notes, pageUrl, state: 'available' | 'downloading' | 'ready', progress} */
+  update: null,
 });
 
 let toastSeq = 0;
@@ -38,10 +43,57 @@ export async function refresh(refreshGames = false) {
 
 export async function init() {
   app.info = await call('app.info').catch(() => null);
+  await loadSettings();
+  if (app.info?.mode === 'setup') return;
   await refresh();
   // Started by double-clicking a .modcrew file.
   const opened = await call('app.takeOpened').catch(() => null);
   if (opened) await showOpened(opened);
+}
+
+// ---------------------------------------------------------------- settings & updates
+
+async function loadSettings() {
+  const s = await call('settings.get').catch(() => null);
+  if (!s) return;
+  app.settings = s;
+  applyAppearance(s.appearance);
+  if (s.update) app.update = { ...s.update, state: s.update.ready ? 'ready' : 'available' };
+}
+
+export async function saveSettings(patch) {
+  // Apply locally first so switching themes feels instant.
+  if (patch.appearance) applyAppearance(patch.appearance);
+  try {
+    app.settings = await call('settings.set', patch);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+on('update.available', (u) => (app.update = { ...u, state: 'available' }));
+on('update.ready', (u) => {
+  app.update = { ...u, state: 'ready' };
+  toast(`ModCrew обновлён до версии ${u.version}. Перезапусти, чтобы включить её.`, 'ok');
+});
+on('update.progress', (p) => {
+  if (app.update) app.update.progress = p.total ? p.done / p.total : null;
+});
+
+export async function installUpdate() {
+  if (!app.update) return;
+  app.update.state = 'downloading';
+  app.update.progress = 0;
+  try {
+    await call('update.apply');
+  } catch (e) {
+    app.update.state = 'available';
+    toast(e.message, 'error');
+  }
+}
+
+export async function restartApp() {
+  await run('update.restart');
 }
 
 /** The editor registers here to receive dropped mod files. */

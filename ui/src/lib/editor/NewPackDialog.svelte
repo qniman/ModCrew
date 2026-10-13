@@ -68,7 +68,7 @@
 </div>
 
 <style>
-  .backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(5, 6, 10, 0.6); backdrop-filter: blur(6px); }
+  .backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: var(--scrim); backdrop-filter: blur(6px); }
   .dialog {
     width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 60px); display: flex; flex-direction: column;
     background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-lg);
@@ -84,13 +84,13 @@
     height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-2);
     color: var(--text); font: inherit; outline: none;
   }
-  input:focus { border-color: rgba(124, 92, 255, 0.6); box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15); }
+  input:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
   .search { height: 30px; width: 180px; font-size: 12.5px; }
   .games { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; max-height: 360px; overflow-y: auto; padding: 4px 2px; }
   .game { position: relative; border: 0; background: none; cursor: pointer; padding: 0; text-align: left; }
   .poster { aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; border: 2px solid transparent; transition: border-color 0.15s, transform 0.2s var(--ease); }
   .game:hover .poster { transform: translateY(-2px); }
-  .game.sel .poster { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.25); }
+  .game.sel .poster { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
   .game span { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .game.sel span { color: var(--text); }
   .tick { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: white; }

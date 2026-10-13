@@ -1,8 +1,9 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json;
 using ModCrew.Install;
 using ModCrew.Packs;
 using ModCrew.Steam;
+using ModCrew.Update;
 
 namespace ModCrew;
 
@@ -14,7 +15,7 @@ sealed class Api
     public const string SteamHost = "steam.modcrew";
 
     readonly Bridge bridge;
-    readonly Form owner;
+    readonly MainForm owner;
     readonly Settings settings = Settings.Load();
     readonly PackLibrary library = new(AppPaths.Packs);
     readonly InstallService installs;
@@ -29,12 +30,63 @@ sealed class Api
 
     Opened? pendingOpen;
 
-    public Api(Bridge bridge, Form owner, string[] startFiles)
+    UpdateInfo? update;
+    bool updateApplied;
+
+    public Api(Bridge bridge, MainForm owner, string[] startFiles, bool setupMode)
     {
         this.bridge = bridge;
         this.owner = owner;
         installs = new InstallService(library, AppPaths.Installs, AppPaths.Cache, protectedDir: AppPaths.Data);
         if (startFiles.Length > 0) pendingOpen = Import(startFiles);
+
+        // Settings page
+        bridge.On("settings.get", _ => SettingsView());
+        bridge.On("settings.set", p =>
+        {
+            if (p.TryGetProperty("autoUpdate", out var auto)) settings.AutoUpdate = auto.GetBoolean();
+            if (p.TryGetProperty("appearance", out var a))
+            {
+                settings.Appearance = Json.Parse<Appearance>(a);
+                settings.Appearance.Clamp();
+                owner.ApplyAppearance(settings.Appearance);
+            }
+            settings.Save();
+            return SettingsView();
+        });
+        bridge.On("app.openDataDir", _ => OpenFolder(AppPaths.Data));
+
+        // Updates from GitHub Releases
+        bridge.OnAsync("update.check", async _ => await CheckUpdate());
+        bridge.OnAsync("update.apply", async _ => await ApplyUpdate());
+        bridge.On("update.restart", _ =>
+        {
+            if (busy) throw new InvalidOperationException("Р”РѕР¶РґРёСЃСЊ РєРѕРЅС†Р° СѓСЃС‚Р°РЅРѕРІРєРё СЃР±РѕСЂРєРё.");
+            owner.BeginInvoke(owner.Restart);
+            return (object?)null;
+        });
+
+        // ModCrew-Setup.exe
+        bridge.On("setup.info", _ => new
+        {
+            version = Updater.CurrentText,
+            installedVersion = Setup.InstalledVersion(),
+            dir = Setup.InstallDir,
+            desktop = Setup.InstalledVersion() == null || Setup.HasDesktopShortcut,
+        });
+        bridge.On("setup.install", p =>
+        {
+            if (!setupMode) throw new InvalidOperationException("Not in setup mode");
+            Setup.Install(p.GetProperty("desktop").GetBoolean());
+            return (object?)null;
+        });
+        bridge.On("setup.finish", p =>
+        {
+            if (p.GetProperty("launch").GetBoolean())
+                Process.Start(new ProcessStartInfo(Setup.InstalledExe) { UseShellExecute = true, WorkingDirectory = Setup.InstallDir });
+            owner.BeginInvoke(owner.Close);
+            return (object?)null;
+        });
 
         // Files the app was started with; the UI asks once it is ready.
         bridge.On("app.takeOpened", _ =>
@@ -48,9 +100,10 @@ sealed class Api
 
         bridge.On("app.info", _ => new
         {
-            version = Application.ProductVersion.Split('+')[0],
+            version = Updater.CurrentText,
             dataDir = AppPaths.Data,
             steamFound = steamPath != null,
+            mode = setupMode ? "setup" : "app",
         });
 
         bridge.On("games.list", p => GamesList(p.ValueKind == JsonValueKind.Object && p.TryGetProperty("refresh", out var r) && r.GetBoolean()));
@@ -87,10 +140,85 @@ sealed class Api
             var url = Str(p, "url");
             if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
                 !url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Можно открывать только веб-ссылки.");
+                throw new InvalidOperationException("РњРѕР¶РЅРѕ РѕС‚РєСЂС‹РІР°С‚СЊ С‚РѕР»СЊРєРѕ РІРµР±-СЃСЃС‹Р»РєРё.");
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             return (object?)null;
         });
+    }
+
+    object SettingsView() => new
+    {
+        autoUpdate = settings.AutoUpdate,
+        appearance = settings.Appearance,
+        version = Updater.CurrentText,
+        devBuild = Updater.IsDevBuild,
+        installed = Setup.IsInstalledCopy,
+        exePath = Updater.ExePath,
+        dataDir = AppPaths.Data,
+        releasesPage = Updater.ReleasesPage,
+        update = update == null ? null : new { update.Version, update.Notes, update.PageUrl, ready = updateApplied },
+    };
+
+    // ---------------------------------------------------------------- updates
+
+    /// <summary>Checks GitHub a few seconds after start and then every 6 hours.</summary>
+    public void StartUpdateChecks(CancellationToken cancel)
+    {
+        if (Updater.IsDevBuild) return;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(4), cancel);
+            while (!cancel.IsCancellationRequested)
+            {
+                try
+                {
+                    await owner.Invoke(async () =>
+                    {
+                        if (updateApplied) return;
+                        var found = await Updater.CheckAsync(cancel);
+                        if (found == null) return;
+                        update = found;
+                        if (settings.AutoUpdate && !busy) await ApplyUpdate();
+                        else bridge.Emit("update.available", new { found.Version, found.Notes, found.PageUrl });
+                    });
+                }
+                catch (Exception e) when (e is not OperationCanceledException)
+                {
+                    // Offline or GitHub hiccup: try again next round, the player does not need to know.
+                }
+                await Task.Delay(TimeSpan.FromHours(6), cancel);
+            }
+        }, cancel);
+    }
+
+    async Task<object> CheckUpdate()
+    {
+        if (Updater.IsDevBuild) return new { status = "dev" };
+        if (updateApplied) return new { status = "ready", version = update!.Version };
+        update = await Updater.CheckAsync();
+        return update == null
+            ? new { status = "latest", version = Updater.CurrentText }
+            : new { status = "available", version = update.Version };
+    }
+
+    async Task<object?> ApplyUpdate()
+    {
+        if (updateApplied) return new { update!.Version };
+        if (busy) throw new InvalidOperationException("РЎРµР№С‡Р°СЃ РёРґС‘С‚ СѓСЃС‚Р°РЅРѕРІРєР° СЃР±РѕСЂРєРё вЂ” РѕР±РЅРѕРІР»СЋ ModCrew РїРѕСЃР»Рµ РЅРµС‘.");
+        update ??= await Updater.CheckAsync() ?? throw new InvalidOperationException("РќРѕРІС‹С… РІРµСЂСЃРёР№ РЅРµС‚.");
+        var info = update;
+        busy = true;
+        try
+        {
+            await Updater.ApplyAsync(info, (done, total) => bridge.Emit("update.progress", new { done, total }));
+        }
+        finally
+        {
+            busy = false;
+        }
+        updateApplied = true;
+        bridge.Emit("update.ready", new { info.Version, info.Notes, info.PageUrl });
+        return new { info.Version };
     }
 
     static string Str(JsonElement p, string name) => p.GetProperty(name).GetString() ?? "";
@@ -149,7 +277,7 @@ sealed class Api
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "Папка, где лежит игра (там, где её .exe)",
+            Description = "РџР°РїРєР°, РіРґРµ Р»РµР¶РёС‚ РёРіСЂР° (С‚Р°Рј, РіРґРµ РµС‘ .exe)",
             UseDescriptionForTitle = true,
             InitialDirectory = GameDir(appId) ?? "",
         };
@@ -161,7 +289,7 @@ sealed class Api
 
     static object? OpenFolder(string? dir)
     {
-        if (dir == null || !Directory.Exists(dir)) throw new DirectoryNotFoundException("Папка не найдена.");
+        if (dir == null || !Directory.Exists(dir)) throw new DirectoryNotFoundException("РџР°РїРєР° РЅРµ РЅР°Р№РґРµРЅР°.");
         Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
         return null;
     }
@@ -204,7 +332,7 @@ sealed class Api
 
     object Create(string name, int appId)
     {
-        if (string.IsNullOrWhiteSpace(name)) throw new InvalidDataException("Введи название сборки.");
+        if (string.IsNullOrWhiteSpace(name)) throw new InvalidDataException("Р’РІРµРґРё РЅР°Р·РІР°РЅРёРµ СЃР±РѕСЂРєРё.");
         var game = SteamGames().FirstOrDefault(g => g.AppId == appId);
         return library.Create(name, appId, game?.Name, Environment.UserName).Id;
     }
@@ -213,15 +341,15 @@ sealed class Api
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Файл мода",
-            Filter = "Моды и установщики (*.zip;*.dll;*.exe;*.msi)|*.zip;*.dll;*.exe;*.msi|Все файлы|*.*",
+            Title = "Р¤Р°Р№Р» РјРѕРґР°",
+            Filter = "РњРѕРґС‹ Рё СѓСЃС‚Р°РЅРѕРІС‰РёРєРё (*.zip;*.dll;*.exe;*.msi)|*.zip;*.dll;*.exe;*.msi|Р’СЃРµ С„Р°Р№Р»С‹|*.*",
         };
         return dialog.ShowDialog(owner) == DialogResult.OK ? AddFileFrom(id, dialog.FileName, appId) : null;
     }
 
     object AddFileFrom(string id, string source, int appId)
     {
-        if (!File.Exists(source)) throw new FileNotFoundException($"Файл не найден: {source}");
+        if (!File.Exists(source)) throw new FileNotFoundException($"Р¤Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ: {source}");
         var rel = library.AddFile(id, source);
         var info = Authoring.Inspect(library.FilePath(id, rel), GameDir(appId));
         info.PackPath = "{pack}/" + rel;
@@ -272,8 +400,8 @@ sealed class Api
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Обложка сборки",
-            Filter = "Картинки (*.jpg;*.jpeg;*.png;*.webp)|*.jpg;*.jpeg;*.png;*.webp",
+            Title = "РћР±Р»РѕР¶РєР° СЃР±РѕСЂРєРё",
+            Filter = "РљР°СЂС‚РёРЅРєРё (*.jpg;*.jpeg;*.png;*.webp)|*.jpg;*.jpeg;*.png;*.webp",
         };
         if (dialog.ShowDialog(owner) != DialogResult.OK) return null;
         var cover = library.SetCover(id, dialog.FileName);
@@ -307,14 +435,14 @@ sealed class Api
         string? picked;
         if (kind == "file")
         {
-            using var dialog = new OpenFileDialog { Title = "Выбери файл", InitialDirectory = game ?? "" };
+            using var dialog = new OpenFileDialog { Title = "Р’С‹Р±РµСЂРё С„Р°Р№Р»", InitialDirectory = game ?? "" };
             picked = dialog.ShowDialog(owner) == DialogResult.OK ? dialog.FileName : null;
         }
         else
         {
             using var dialog = new FolderBrowserDialog
             {
-                Description = "Выбери папку (внутри папки игры)", UseDescriptionForTitle = true, InitialDirectory = game ?? "",
+                Description = "Р’С‹Р±РµСЂРё РїР°РїРєСѓ (РІРЅСѓС‚СЂРё РїР°РїРєРё РёРіСЂС‹)", UseDescriptionForTitle = true, InitialDirectory = game ?? "",
             };
             picked = dialog.ShowDialog(owner) == DialogResult.OK ? dialog.SelectedPath : null;
         }
@@ -338,15 +466,15 @@ sealed class Api
             if (full.StartsWith(root + "\\", StringComparison.OrdinalIgnoreCase))
                 return $"{{{name}}}/" + full[(root.Length + 1)..].Replace('\\', '/');
         }
-        throw new InvalidOperationException("Это место вне папки игры и папок сохранений — у друзей такого пути не будет.");
+        throw new InvalidOperationException("Р­С‚Рѕ РјРµСЃС‚Рѕ РІРЅРµ РїР°РїРєРё РёРіСЂС‹ Рё РїР°РїРѕРє СЃРѕС…СЂР°РЅРµРЅРёР№ вЂ” Сѓ РґСЂСѓР·РµР№ С‚Р°РєРѕРіРѕ РїСѓС‚Рё РЅРµ Р±СѓРґРµС‚.");
     }
 
     object? ImportFile()
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Добавить сборку",
-            Filter = "Сборка ModCrew (*.modcrew)|*.modcrew|Все файлы|*.*",
+            Title = "Р”РѕР±Р°РІРёС‚СЊ СЃР±РѕСЂРєСѓ",
+            Filter = "РЎР±РѕСЂРєР° ModCrew (*.modcrew)|*.modcrew|Р’СЃРµ С„Р°Р№Р»С‹|*.*",
         };
         return dialog.ShowDialog(owner) == DialogResult.OK ? library.Import(dialog.FileName).Id : null;
     }
@@ -355,7 +483,7 @@ sealed class Api
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "Папка сборки (с файлом pack.json)",
+            Description = "РџР°РїРєР° СЃР±РѕСЂРєРё (СЃ С„Р°Р№Р»РѕРј pack.json)",
             UseDescriptionForTitle = true,
         };
         return dialog.ShowDialog(owner) == DialogResult.OK ? library.Import(dialog.SelectedPath).Id : null;
@@ -366,8 +494,8 @@ sealed class Api
         var pack = library.Get(id);
         using var dialog = new SaveFileDialog
         {
-            Title = "Сохранить сборку для друзей",
-            Filter = "Сборка ModCrew (*.modcrew)|*.modcrew",
+            Title = "РЎРѕС…СЂР°РЅРёС‚СЊ СЃР±РѕСЂРєСѓ РґР»СЏ РґСЂСѓР·РµР№",
+            Filter = "РЎР±РѕСЂРєР° ModCrew (*.modcrew)|*.modcrew",
             FileName = $"{pack.Id}-{pack.Version}{PackLibrary.Extension}",
         };
         if (dialog.ShowDialog(owner) != DialogResult.OK) return null;
@@ -378,7 +506,7 @@ sealed class Api
 
     object? RemovePack(string id)
     {
-        if (installs.Get(id) != null) throw new InvalidOperationException("Сначала удали сборку из игры.");
+        if (installs.Get(id) != null) throw new InvalidOperationException("РЎРЅР°С‡Р°Р»Р° СѓРґР°Р»Рё СЃР±РѕСЂРєСѓ РёР· РёРіСЂС‹.");
         library.Remove(id);
         return null;
     }
@@ -387,13 +515,13 @@ sealed class Api
 
     async Task<object?> Install(string id)
     {
-        if (busy) throw new InvalidOperationException("Уже идёт установка.");
+        if (busy) throw new InvalidOperationException("РЈР¶Рµ РёРґС‘С‚ СѓСЃС‚Р°РЅРѕРІРєР°.");
         busy = true;
         try
         {
             var pack = library.Get(id);
             var dir = GameDir(pack.Game.SteamAppId)
-                      ?? throw new DirectoryNotFoundException($"Игра «{pack.Game.Name ?? pack.Game.SteamAppId.ToString()}» не найдена. Установи её в Steam или укажи папку вручную на вкладке «Игры».");
+                      ?? throw new DirectoryNotFoundException($"РРіСЂР° В«{pack.Game.Name ?? pack.Game.SteamAppId.ToString()}В» РЅРµ РЅР°Р№РґРµРЅР°. РЈСЃС‚Р°РЅРѕРІРё РµС‘ РІ Steam РёР»Рё СѓРєР°Р¶Рё РїР°РїРєСѓ РІСЂСѓС‡РЅСѓСЋ РЅР° РІРєР»Р°РґРєРµ В«РРіСЂС‹В».");
             var progress = new Progress<InstallProgress>(p => bridge.Emit("install.progress", new
             {
                 packId = id, step = p.Step, total = p.TotalSteps, mod = p.Mod, text = p.Text, fraction = p.Fraction,
@@ -409,7 +537,7 @@ sealed class Api
 
     object? Uninstall(string id)
     {
-        if (busy) throw new InvalidOperationException("Сейчас идёт установка.");
+        if (busy) throw new InvalidOperationException("РЎРµР№С‡Р°СЃ РёРґС‘С‚ СѓСЃС‚Р°РЅРѕРІРєР°.");
         installs.Uninstall(id);
         return null;
     }

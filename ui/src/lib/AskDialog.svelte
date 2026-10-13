@@ -28,7 +28,7 @@
 <style>
   .backdrop {
     position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
-    background: rgba(5, 6, 10, 0.6); backdrop-filter: blur(6px);
+    background: var(--scrim); backdrop-filter: blur(6px);
     animation: fade 0.15s;
   }
   .dialog {

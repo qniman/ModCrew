@@ -3,31 +3,47 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
+using ModCrew.Update;
 
 namespace ModCrew;
 
 sealed class MainForm : Form
 {
-    static readonly Color Background = Color.FromArgb(12, 13, 18);
+    static readonly Color DarkBackground = Color.FromArgb(12, 13, 18);
+    static readonly Color LightBackground = Color.FromArgb(243, 244, 248);
 
     readonly WebView2 view;
     readonly string[] startFiles;
+    readonly bool setupMode;
+    readonly Settings settings = Settings.Load();
     readonly CancellationTokenSource closing = new();
     CoreWebView2Environment? env;
     Bridge? bridge;
     Api? api;
 
-    public MainForm(string[] args)
+    public MainForm(string[] args, bool setupMode)
     {
         startFiles = args;
-        Text = "ModCrew";
-        BackColor = Background;
+        this.setupMode = setupMode;
+        settings.Appearance.Clamp();
+        var background = settings.Appearance.IsDark() ? DarkBackground : LightBackground;
+        Text = setupMode ? "Установка ModCrew" : "ModCrew";
+        BackColor = background;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(1280, 800);
-        MinimumSize = new Size(980, 640);
-        Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? Application.ExecutablePath);
+        if (setupMode)
+        {
+            ClientSize = new Size(640, 560);
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
+        }
+        else
+        {
+            ClientSize = new Size(1280, 800);
+            MinimumSize = new Size(980, 640);
+        }
+        Icon = Icon.ExtractAssociatedIcon(Updater.ExePath);
 
-        view = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Background };
+        view = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = background };
         Controls.Add(view);
         Load += async (_, _) => await InitAsync();
         FormClosed += (_, _) => closing.Cancel();
@@ -36,11 +52,35 @@ sealed class MainForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        // Dark title bar matching the UI (Windows 10 1809+ / 11; ignored elsewhere).
-        int on = 1;
+        ApplyTitleBar();
+    }
+
+    /// <summary>Title bar colour matching the UI theme (Windows 10 1809+ / 11; ignored elsewhere).</summary>
+    void ApplyTitleBar()
+    {
+        bool dark = settings.Appearance.IsDark();
+        int on = dark ? 1 : 0;
         DwmSetWindowAttribute(Handle, 20, ref on, sizeof(int));
-        int caption = ColorTranslator.ToWin32(Background);
+        int caption = ColorTranslator.ToWin32(dark ? DarkBackground : LightBackground);
         DwmSetWindowAttribute(Handle, 35, ref caption, sizeof(int));
+    }
+
+    /// <summary>Theme (title bar, background) and interface scale from Settings.</summary>
+    public void ApplyAppearance(Appearance appearance)
+    {
+        settings.Appearance = appearance;
+        var background = appearance.IsDark() ? DarkBackground : LightBackground;
+        BackColor = background;
+        view.DefaultBackgroundColor = background;
+        if (view.CoreWebView2 != null && !setupMode) view.ZoomFactor = appearance.Scale;
+        if (IsHandleCreated) ApplyTitleBar();
+    }
+
+    /// <summary>Starts the (updated) exe again and closes this window.</summary>
+    public void Restart()
+    {
+        Process.Start(new ProcessStartInfo(Updater.ExePath, $"--after {Environment.ProcessId}") { UseShellExecute = false });
+        Close();
     }
 
     async Task InitAsync()
@@ -78,12 +118,18 @@ sealed class MainForm : Form
         web.SetVirtualHostNameToFolderMapping(Api.PacksHost, AppPaths.Packs, CoreWebView2HostResourceAccessKind.Allow);
 
         bridge = new Bridge(web, this);
-        api = new Api(bridge, this, startFiles);
+        api = new Api(bridge, this, startFiles, setupMode);
         if (api.SteamPath != null)
             web.SetVirtualHostNameToFolderMapping(Api.SteamHost,
                 Path.Combine(api.SteamPath, "appcache", "librarycache"), CoreWebView2HostResourceAccessKind.Allow);
 
-        var home = devUrl ?? $"https://{Api.AppHost}/index.html";
+        view.ZoomFactor = setupMode ? 1.0 : settings.Appearance.Scale;
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += (_, _) =>
+        {
+            if (settings.Appearance.Theme == "system" && IsHandleCreated) BeginInvoke(() => ApplyAppearance(settings.Appearance));
+        };
+
+        var home = (devUrl ?? $"https://{Api.AppHost}/index.html") + (setupMode ? "#setup" : "");
         var homeOrigin = new Uri(home).GetLeftPart(UriPartial.Authority);
 
         // Links never navigate the app window: external ones open in the real browser.
@@ -100,6 +146,7 @@ sealed class MainForm : Form
         };
 
         web.Navigate(home);
+        if (setupMode) return;
 
         Shell.RegisterFileType();
         _ = Shell.ListenAsync(files => BeginInvoke(() =>
@@ -107,6 +154,7 @@ sealed class MainForm : Form
             BringToFront();
             api.OpenFiles(files);
         }), closing.Token);
+        api.StartUpdateChecks(closing.Token);
     }
 
     new void BringToFront()

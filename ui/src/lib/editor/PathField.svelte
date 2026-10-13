@@ -115,11 +115,11 @@
     display: flex; height: 36px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--bg-2);
     transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .row:focus-within { border-color: rgba(124, 92, 255, 0.6); box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15); }
+  .row:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
   .row.invalid { border-color: rgba(248, 113, 113, 0.55); }
   input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); padding: 0 10px; outline: none; font-size: 12.5px; }
   .pick { width: 36px; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; border-radius: 0 9px 9px 0; }
-  .pick:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+  .pick:hover { color: var(--text); background: rgb(var(--fg-rgb) / 0.05); }
   .mono { font-family: 'Cascadia Mono', Consolas, monospace; }
 
   .pop {
@@ -133,14 +133,14 @@
     display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 7px;
     background: transparent; cursor: pointer; text-align: left; font-size: 13px; color: var(--text);
   }
-  .opt:hover { background: rgba(255, 255, 255, 0.06); }
-  .opt.accent { color: #b9a8ff; }
+  .opt:hover { background: rgb(var(--fg-rgb) / 0.06); }
+  .opt.accent { color: var(--accent-text); }
   .opt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   .empty { padding: 6px 8px; color: var(--faint); font-size: 12.5px; }
   .vars { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 6px 6px; }
   .var {
-    border: 1px solid var(--line-2); background: var(--bg-2); color: #d6ccff; border-radius: 6px;
+    border: 1px solid var(--line-2); background: var(--bg-2); color: var(--accent-text); border-radius: 6px;
     padding: 3px 7px; font-size: 11.5px; cursor: pointer;
   }
-  .var:hover { border-color: rgba(124, 92, 255, 0.5); }
+  .var:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
 </style>

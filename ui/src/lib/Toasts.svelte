@@ -22,7 +22,7 @@
   .toast {
     display: flex; align-items: flex-start; gap: 10px; max-width: 420px;
     padding: 12px 16px; border-radius: 12px;
-    background: rgba(27, 31, 42, 0.92); backdrop-filter: blur(12px);
+    background: color-mix(in srgb, var(--panel-2) 92%, transparent); backdrop-filter: blur(12px);
     border: 1px solid var(--line-2); box-shadow: var(--shadow);
     white-space: pre-line;
   }

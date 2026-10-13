@@ -1,0 +1,57 @@
+# Push a tag like v0.2.0 → GitHub builds ModCrew and publishes a release.
+# Installed ModCrew copies find it through the GitHub API and update themselves.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Version from tag
+        shell: pwsh
+        run: |
+          $v = '${{ github.ref_name }}'.TrimStart('v')
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install UI packages
+        working-directory: ui
+        run: npm ci
+
+      - name: Test
+        run: dotnet test tests/ModCrew.Tests -nologo
+
+      - name: Build ModCrew.exe
+        run: dotnet publish src/ModCrew -p:PublishProfile=Friends -p:Version=${{ env.VERSION }} -nologo
+
+      - name: Release assets
+        shell: pwsh
+        run: |
+          Copy-Item publish/ModCrew.exe publish/ModCrew-Setup.exe
+          $hash = (Get-FileHash publish/ModCrew.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  ModCrew.exe" | Set-Content -NoNewline publish/ModCrew.exe.sha256
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create '${{ github.ref_name }}'
+          publish/ModCrew-Setup.exe publish/ModCrew.exe publish/ModCrew.exe.sha256
+          --title 'ModCrew ${{ env.VERSION }}'
+          --generate-notes

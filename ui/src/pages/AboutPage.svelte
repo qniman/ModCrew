@@ -74,10 +74,10 @@
     position: relative; padding: 22px 20px; border-radius: var(--radius-lg);
     background: var(--panel); border: 1px solid var(--line); animation: fade-up 0.4s var(--ease) both;
   }
-  .n { position: absolute; top: 16px; right: 18px; font-size: 36px; font-weight: 800; color: rgba(255, 255, 255, 0.05); }
+  .n { position: absolute; top: 16px; right: 18px; font-size: 36px; font-weight: 800; color: rgb(var(--fg-rgb) / 0.05); }
   .ic {
     width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 16px;
-    background: var(--accent-soft); color: #a993ff;
+    background: var(--accent-soft); color: var(--accent-text);
   }
   .step h3 { font-size: 15px; margin-bottom: 6px; }
   .step p { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.55; }
@@ -93,9 +93,9 @@
 
   .author { margin-top: 36px; }
   .author h2 { font-size: 18px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .author h2 :global(svg) { color: #a993ff; }
+  .author h2 :global(svg) { color: var(--accent-text); }
   .author p { color: var(--muted); line-height: 1.7; max-width: 820px; user-select: text; }
-  code { background: rgba(255, 255, 255, 0.07); padding: 1px 6px; border-radius: 6px; font-size: 12.5px; color: #d6ccff; user-select: text; }
+  code { background: rgb(var(--fg-rgb) / 0.07); padding: 1px 6px; border-radius: 6px; font-size: 12.5px; color: var(--accent-text); user-select: text; }
   .actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 24px; margin-top: 14px; }
   .actions div { display: flex; gap: 10px; align-items: baseline; color: var(--muted); font-size: 13px; }
   .actions code { min-width: 92px; text-align: center; }

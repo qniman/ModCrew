@@ -8,14 +8,38 @@
 - **C# / .NET 8, WinForms + WebView2**: окно, вся логика (Steam, установка, журнал отката).
 - **Svelte 5 + Vite**: интерфейс (`ui/`), собирается в `wwwroot` рядом с exe.
 
-## Сборка
+## Папка ModCrewFinal
+```
+ModCrewFinal\
+  Source\      этот репозиторий
+  App\         ModCrew.exe — готовая программа, запускается без установки
+  Installer\   ModCrew-Setup.exe — установщик для друзей
+```
+`powershell -ExecutionPolicy Bypass -File build-final.ps1` — тесты, сборка и обновление App\ и Installer\.
+
+**Установщик** — тот же exe под именем `ModCrew-Setup.exe` (имя включает режим установки). Ставит без прав
+администратора в `%LOCALAPPDATA%\Programs\ModCrew`, ярлык в «Пуск» (и на рабочем столе по желанию),
+связывает `.modcrew`, добавляет запись в «Параметры → Приложения» (оттуда же удаляется).
+
+## Обновления (GitHub Releases)
+Новая версия = тег. GitHub Actions (`.github/workflows/release.yml`) сам соберёт и выложит релиз:
+```
+git tag v0.2.1
+git push origin master --tags
+```
+В релизе: `ModCrew-Setup.exe` (для новых), `ModCrew.exe` (его качают обновления), `ModCrew.exe.sha256`.
+ModCrew проверяет `qniman/ModCrew` через 4 секунды после запуска и потом каждые 6 часов. С автообновлением
+(по умолчанию) сам скачивает новый exe, проверяет sha256 и подменяет себя — новая версия включается при
+перезапуске (кнопка в боковой панели). Без него — только показывает, что вышла новая версия.
+Сборки из исходников (`bin\…`) не обновляются.
+
+## Разработка
 ```
 dotnet build src/ModCrew -c Release        # соберёт и UI (npm install при первом запуске)
 dotnet test tests/ModCrew.Tests
-dotnet publish src/ModCrew -p:PublishProfile=Friends   # publish\ModCrew.exe — один файл для друзей, .NET не нужен
 ```
-Друзьям отправляешь `ModCrew.exe` и `.modcrew`. После первого запуска `.modcrew` открываются двойным кликом.
-Нужны .NET SDK 8+ и Node.js. `-p:SkipUi=true` собирает только C#.
+Нужны .NET SDK 8+ и Node.js.
+`-p:SkipUi=true` собирает только C#.
 
 **Разработка интерфейса:** `cd ui && npm run dev`: страница на http://localhost:5173 с мок-данными
 (`ui/src/lib/mock.js`), без exe. Чтобы exe грузил живой dev-сервер: `set MODCREW_DEV_URL=http://localhost:5173`.
