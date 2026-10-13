@@ -1,0 +1,34 @@
+{
+  // Example pack. Comments are allowed in pack.json.
+  "format": 1,
+  "id": "msc-demo",
+  "name": "Демо-сборка MSC",
+  "version": "1.0.0",
+  "author": "qniman",
+  "description": "Безопасный пример: кладёт папку ModCrew-demo в папку игры. Удаление из игры убирает её обратно.",
+  "game": { "steamAppId": 516750, "name": "My Summer Car" },
+  "mods": [
+    {
+      "id": "hello",
+      "name": "Hello ModCrew",
+      "version": "1.0",
+      "description": "Копирует текстовый файл и записывает настройку в .ini.",
+      "steps": [
+        { "action": "copy", "from": "{pack}/files/ModCrew-demo", "to": "{game}/ModCrew-demo" },
+        { "action": "setIni", "file": "{game}/ModCrew-demo/settings.ini", "section": "Demo", "key": "InstalledBy", "value": "ModCrew" }
+      ]
+    },
+    {
+      "id": "mscloader-example",
+      "name": "MSCLoader (пример шагов)",
+      "version": "1.4.2",
+      "description": "Так выглядит установка мода из интернета: скачать → распаковать → скопировать. В демо шаги закомментированы.",
+      "url": "https://github.com/piotrulos/MSCModLoader",
+      "steps": [
+        // { "action": "download", "url": "https://github.com/.../MSCLoader.zip", "sha256": "…", "saveAs": "mscloader.zip" },
+        // { "action": "extract", "from": "mscloader.zip", "to": "mscloader" },
+        // { "action": "copy", "from": "mscloader/Mods", "to": "{game}/Mods" }
+      ]
+    }
+  ]
+}

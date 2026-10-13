@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ModCrew</RootNamespace>
+    <AssemblyName>ModCrew</AssemblyName>
+    <Version>0.1.0</Version>
+    <Product>ModCrew</Product>
+    <Authors>qniman</Authors>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <UiDir>$(MSBuildThisFileDirectory)..\..\ui\</UiDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ModCrew.Tests" />
+  </ItemGroup>
+
+  <!-- Build the Svelte UI (ui/) and ship it as wwwroot next to the exe.
+       Pass -p:SkipUi=true to build only the C# side. -->
+  <ItemGroup>
+    <UiSource Include="$(UiDir)src\**\*;$(UiDir)index.html;$(UiDir)package.json;$(UiDir)vite.config.js;$(UiDir)public\**\*" />
+  </ItemGroup>
+
+  <Target Name="NpmInstall" BeforeTargets="BuildUi" Condition="'$(SkipUi)' != 'true' And !Exists('$(UiDir)node_modules')">
+    <Exec Command="npm install" WorkingDirectory="$(UiDir)" />
+  </Target>
+
+  <Target Name="BuildUi" BeforeTargets="BeforeBuild" Condition="'$(SkipUi)' != 'true'" Inputs="@(UiSource)" Outputs="$(UiDir)dist\index.html">
+    <Exec Command="npm run build" WorkingDirectory="$(UiDir)" />
+  </Target>
+
+  <Target Name="IncludeUi" AfterTargets="BuildUi" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_UiFile Include="$(UiDir)dist\**\*" />
+      <Content Include="@(_UiFile)" Link="wwwroot\%(_UiFile.RecursiveDir)%(_UiFile.Filename)%(_UiFile.Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+
+</Project>

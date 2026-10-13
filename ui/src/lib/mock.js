@@ -1,0 +1,114 @@
+// Fake host for browser development. Mirrors the shapes returned by Api.cs.
+const cdn = (id, file) => `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}/${file}`;
+const images = (id) => ({
+  poster: cdn(id, 'library_600x900.jpg'),
+  hero: cdn(id, 'library_hero.jpg'),
+  logo: cdn(id, 'logo.png'),
+  header: cdn(id, 'header.jpg'),
+});
+
+const games = [
+  { appId: 516750, name: 'My Summer Car', dir: 'D:\\SteamLibrary\\steamapps\\common\\My Summer Car' },
+  { appId: 4164420, name: 'My Winter Car', dir: 'D:\\SteamLibrary\\steamapps\\common\\My Winter Car' },
+  { appId: 892970, name: 'Valheim', dir: 'D:\\SteamLibrary\\steamapps\\common\\Valheim' },
+  { appId: 548430, name: 'Deep Rock Galactic', dir: 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Deep Rock Galactic' },
+  { appId: 413150, name: 'Stardew Valley', dir: 'D:\\SteamLibrary\\steamapps\\common\\Stardew Valley' },
+  { appId: 1203220, name: 'NARAKA: BLADEPOINT', dir: 'D:\\SteamLibrary\\steamapps\\common\\NARAKA' },
+];
+
+const packs = [
+  {
+    pack: {
+      id: 'msc-friends', name: 'MSC с друзьями', version: '1.2.0', author: 'qniman',
+      description: 'Мультиплеер, удобные мелочи и наша сигнализация на Сатсуму. Ставится за минуту — просто жми «Установить».',
+      game: { steamAppId: 516750, name: 'My Summer Car' },
+      mods: [
+        { id: 'mscloader', name: 'MSCLoader', version: '1.4.2', description: 'Загрузчик модов — нужен всем остальным.', url: 'https://github.com/piotrulos/MSCModLoader', steps: [{}, {}, {}] },
+        { id: 'mscmp', name: 'MSC Multiplayer', version: '0.4', description: 'Играем вместе.', steps: [{}, {}] },
+        { id: 'cse', name: 'Car Systems Extended', version: '1.0.1', description: 'Сигнализация, центральный замок, автозапуск.', steps: [{}] },
+        { id: 'fps', name: 'FPS Boost', version: '2.1', steps: [{}, {}] },
+      ],
+    },
+    coverUrl: null,
+    installed: { version: '1.1.0', complete: true, at: '2026-10-01T18:00:00' },
+  },
+  {
+    pack: {
+      id: 'valheim-qol', name: 'Valheim — удобства', version: '3.0.1', author: 'qniman',
+      description: 'BepInEx, большой инвентарь, карта на всех.',
+      game: { steamAppId: 892970, name: 'Valheim' },
+      mods: [
+        { id: 'bepinex', name: 'BepInExPack Valheim', version: '5.4.2202', steps: [{}, {}] },
+        { id: 'equip', name: 'Equipment & Quickslots', version: '2.1.13', steps: [{}] },
+      ],
+    },
+    coverUrl: null,
+    installed: null,
+  },
+  {
+    pack: {
+      id: 'stardew-coop', name: 'Stardew на четверых', version: '1.0.0', author: 'Саня',
+      description: 'SMAPI и пачка модов для кооператива.',
+      game: { steamAppId: 413150, name: 'Stardew Valley' },
+      mods: [{ id: 'smapi', name: 'SMAPI', version: '4.1.10', steps: [{}, {}, {}] }],
+    },
+    coverUrl: null,
+    installed: { version: '1.0.0', complete: true, at: '2026-09-20T12:00:00' },
+  },
+];
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function packView(p) {
+  const g = games.find((x) => x.appId === p.pack.game.steamAppId);
+  return { ...p, game: { appId: p.pack.game.steamAppId, name: g?.name ?? p.pack.game.name, found: !!g, images: images(p.pack.game.steamAppId) } };
+}
+
+async function install(id, emit) {
+  const p = packs.find((x) => x.pack.id === id);
+  const steps = [
+    ['MSCLoader', 'Скачиваю MSCLoader.zip'], ['MSCLoader', 'Распаковываю MSCLoader.zip'], ['MSCLoader', 'Копирую в Mods'],
+    ['MSC Multiplayer', 'Скачиваю MSCMP.zip'], ['MSC Multiplayer', 'Копирую MSCMP'], ['Car Systems Extended', 'Копирую CarSystemsExtended.dll'],
+  ];
+  for (let i = 0; i < steps.length; i++) {
+    const [mod, text] = steps[i];
+    if (text.startsWith('Скачиваю')) {
+      for (let f = 0; f <= 1; f += 0.1) {
+        emit('install.progress', { packId: id, step: i + 1, total: steps.length, mod, text: `${text} — ${(f * 12.4).toFixed(1)} из 12.4 МБ`, fraction: f });
+        await wait(120);
+      }
+    } else {
+      emit('install.progress', { packId: id, step: i + 1, total: steps.length, mod, text });
+      await wait(500);
+    }
+  }
+  p.installed = { version: p.pack.version, complete: true, at: new Date().toISOString() };
+}
+
+export const mock = {
+  async call(method, params, emit) {
+    await wait(60);
+    switch (method) {
+      case 'app.info': return { version: '0.1.0-dev', dataDir: 'C:\\Users\\you\\AppData\\Local\\ModCrew', steamFound: true };
+      case 'games.list':
+        return games.map((g) => {
+          const inst = packs.find((p) => p.pack.game.steamAppId === g.appId && p.installed);
+          return {
+            ...g, custom: false, images: images(g.appId),
+            packCount: packs.filter((p) => p.pack.game.steamAppId === g.appId).length,
+            installedPack: inst ? { id: inst.pack.id, name: inst.pack.name, version: inst.installed.version } : null,
+          };
+        });
+      case 'packs.list': return packs.map(packView);
+      case 'install.run': return install(params.id, emit);
+      case 'install.uninstall': packs.find((x) => x.pack.id === params.id).installed = null; return null;
+      case 'packs.remove': packs.splice(packs.findIndex((x) => x.pack.id === params.id), 1); return null;
+      case 'packs.importFile':
+      case 'packs.importFolder':
+      case 'packs.export':
+      case 'games.setPath':
+        throw new Error('В браузерном режиме диалоги файлов недоступны — запусти ModCrew.exe.');
+      default: return null;
+    }
+  },
+};
