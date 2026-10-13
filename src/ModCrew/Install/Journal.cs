@@ -6,6 +6,12 @@ public sealed class JournalEntry
     public string Kind { get; set; } = "";
     public string Path { get; set; } = "";
     public string? Backup { get; set; }
+
+    // What the install left at Path (for files): lets ModCrew notice that Steam or someone replaced it.
+    // Size -1 = the install removed the file. Null = installed before ModCrew recorded this.
+    public long? Size { get; set; }
+    public long? Ticks { get; set; }
+    public string? Sha256 { get; set; }
 }
 
 /// <summary>

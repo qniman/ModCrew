@@ -94,6 +94,8 @@ public sealed class InstallService
             var paths = new PathResolver(gameDir, library.DirOf(packId), work, protectedDir);
             var installer = new Installer(pack, paths, journal, Path.Combine(cacheDir, "downloads"), progress, ask, cancel);
             await Task.Run(() => installer.RunAsync(afterStep: Save), cancel);
+            progress.Report(new InstallProgress(0, 0, "", "Запоминаю установленные файлы…"));
+            await Task.Run(() => Fingerprint(record.Journal), cancel);
             record.Complete = true;
             Save();
         }
@@ -121,6 +123,69 @@ public sealed class InstallService
             throw new IOException("Не всё удалось вернуть (возможно, игра запущена):\n" + string.Join("\n", errors.Take(5)));
         Directory.Delete(dir, recursive: true);
         return errors;
+    }
+
+    // ---------------------------------------------------------------- verify & repair
+
+    static void Fingerprint(List<JournalEntry> entries)
+    {
+        foreach (var e in entries.Where(e => e.Kind is "file" or "backup"))
+        {
+            var info = new FileInfo(e.Path);
+            if (!info.Exists)
+            {
+                e.Size = -1;
+                e.Ticks = null;
+                e.Sha256 = null;
+                continue;
+            }
+            e.Size = info.Length;
+            e.Ticks = info.LastWriteTimeUtc.Ticks;
+            e.Sha256 = Downloader.Sha256Of(e.Path);
+        }
+    }
+
+    /// <summary>True when the file at the entry's path is no longer what the install left there.</summary>
+    static bool Changed(JournalEntry e)
+    {
+        var info = new FileInfo(e.Path);
+        if (e.Size == null) return e.Kind == "file" && !info.Exists; // old record: only "is it there"
+        if (e.Size == -1) return info.Exists;
+        if (!info.Exists || info.Length != e.Size) return true;
+        if (info.LastWriteTimeUtc.Ticks == e.Ticks) return false; // untouched: skip hashing
+        return e.Sha256 != null && Downloader.Sha256Of(e.Path) != e.Sha256;
+    }
+
+    /// <summary>Files of an installed pack that went missing or were replaced (e.g. by a Steam update).</summary>
+    public List<string> Verify(string packId)
+    {
+        var record = Get(packId) ?? throw new InvalidOperationException("Сборка не установлена.");
+        var gameDir = record.GameDir.TrimEnd('\\') + "\\";
+        return record.Journal.Where(e => e.Kind is "file" or "backup").Where(Changed)
+            .Select(e => e.Path.StartsWith(gameDir, StringComparison.OrdinalIgnoreCase) ? e.Path[gameDir.Length..] : e.Path)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Reinstalls a pack whose files were changed from outside. Whatever replaced our files (a game update)
+    /// becomes the new "original", so rolling back does not bring back outdated game files.
+    /// </summary>
+    public async Task RepairAsync(string packId, IProgress<InstallProgress> progress, AskUser ask, CancellationToken cancel = default)
+    {
+        var record = Get(packId) ?? throw new InvalidOperationException("Сборка не установлена.");
+        var backupDir = Path.Combine(RecordDir(packId), "backup");
+        Directory.CreateDirectory(backupDir);
+        foreach (var e in record.Journal.Where(e => e.Kind is "file" or "backup").ToList())
+        {
+            if (!File.Exists(e.Path) || !Changed(e)) continue;
+            // Keep the new file as the original to restore.
+            var backup = e.Backup ?? Path.Combine(backupDir, "r" + Guid.NewGuid().ToString("N")[..10] + ".bak");
+            File.Copy(e.Path, backup, overwrite: true);
+            e.Kind = "backup";
+            e.Backup = backup;
+        }
+        Json.Write(RecordPath(packId), record);
+        await InstallAsync(packId, record.GameDir, progress, ask, cancel);
     }
 
     static void TryDeleteDir(string dir)

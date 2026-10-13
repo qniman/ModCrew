@@ -4,6 +4,7 @@
   import { call } from '../lib/api.js';
   import { actions, actionOrder, newStep, strip, withKeys, key, bumpVersion } from '../lib/editor/steps.js';
   import StepCard from '../lib/editor/StepCard.svelte';
+  import PathField from '../lib/editor/PathField.svelte';
   import AddModDialog from '../lib/editor/AddModDialog.svelte';
   import Icon from '../lib/Icon.svelte';
   import Cover from '../lib/Cover.svelte';
@@ -199,6 +200,16 @@
         <label class="field"><span class="lbl">Автор</span><input bind:value={draft.author} /></label>
       </div>
       <label class="field"><span class="lbl">Описание</span><textarea rows="4" bind:value={draft.description} placeholder="Что даёт сборка, как играть…"></textarea></label>
+      <div class="field">
+        <span class="lbl">Папка сохранений</span>
+        <PathField bind:value={draft.saves} kind="path-write" packId={id} appId={draft.game.steamAppId}
+          placeholder={view?.game.savesDefault ?? 'не указана — бэкапов не будет'} />
+        <span class="hint">
+          {#if draft.saves}Её ModCrew копирует перед установкой и обновлением сборки.
+          {:else if view?.game.savesDefault}Для этой игры ModCrew знает её сам — можно не заполнять.
+          {:else}Укажи, где игра хранит сохранения, — ModCrew будет делать их копии перед установкой.{/if}
+        </span>
+      </div>
       <div class="pid">id: <span>{id}</span></div>
 
       {#if packProblems.length}
@@ -331,6 +342,7 @@
   textarea { height: auto; padding: 9px 11px; resize: vertical; line-height: 1.5; }
   select { cursor: pointer; }
   input:focus, textarea:focus, select:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
+  .hint { font-size: 12px; color: var(--faint); line-height: 1.45; }
   .pid { font-size: 12px; color: var(--faint); }
   .pid span { font-family: 'Cascadia Mono', Consolas, monospace; user-select: text; }
 

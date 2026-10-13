@@ -217,6 +217,11 @@ public static class Authoring
         catch (InvalidDataException e) { problems.Add(new Problem("error", e.Message)); }
 
         if (pack.Mods.Count == 0) problems.Add(new Problem("warning", "В сборке нет ни одного мода."));
+        if (!string.IsNullOrWhiteSpace(pack.Saves))
+        {
+            try { Saves.SaveBackups.CheckTemplate(pack.Saves); }
+            catch (InvalidDataException e) { problems.Add(new Problem("error", e.Message)); }
+        }
         if (pack.Cover != null && !File.Exists(Path.Combine(library.DirOf(id), pack.Cover)))
             problems.Add(new Problem("error", $"Нет файла обложки {pack.Cover}."));
 

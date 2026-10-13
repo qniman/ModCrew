@@ -1,8 +1,9 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Text.Json;
 using ModCrew.Install;
 using ModCrew.Packs;
 using ModCrew.Steam;
+using ModCrew.Saves;
 using ModCrew.Update;
 
 namespace ModCrew;
@@ -19,6 +20,7 @@ sealed class Api
     readonly Settings settings = Settings.Load();
     readonly PackLibrary library = new(AppPaths.Packs);
     readonly InstallService installs;
+    readonly SaveBackups saves = new(Path.Combine(AppPaths.Data, "saves"));
     readonly string? steamPath = SteamLocator.SteamPath();
     List<SteamGame>? steamGames;
     bool busy;
@@ -61,7 +63,7 @@ sealed class Api
         bridge.OnAsync("update.apply", async _ => await ApplyUpdate());
         bridge.On("update.restart", _ =>
         {
-            if (busy) throw new InvalidOperationException("Р”РѕР¶РґРёСЃСЊ РєРѕРЅС†Р° СѓСЃС‚Р°РЅРѕРІРєРё СЃР±РѕСЂРєРё.");
+            if (busy) throw new InvalidOperationException("Дождись конца установки сборки.");
             owner.BeginInvoke(owner.Restart);
             return (object?)null;
         });
@@ -134,13 +136,33 @@ sealed class Api
 
         bridge.OnAsync("install.run", p => Install(Str(p, "id")));
         bridge.On("install.uninstall", p => Uninstall(Str(p, "id")));
+        bridge.OnAsync("install.verify", async p =>
+        {
+            var id = Str(p, "id");
+            var changed = await Task.Run(() => installs.Verify(id));
+            return new { changed = changed.Take(20).ToList(), count = changed.Count };
+        });
+        bridge.OnAsync("install.repair", p => Install(Str(p, "id"), repair: true));
+        bridge.On("game.launch", p =>
+        {
+            // Steam starts the game the normal way (overlay, cloud saves, multiplayer).
+            Process.Start(new ProcessStartInfo($"steam://rungameid/{Int(p, "appId")}") { UseShellExecute = true });
+            return (object?)null;
+        });
+
+        // Save backups
+        bridge.On("saves.list", p => SavesList(Str(p, "id")));
+        bridge.On("saves.backup", p => { var (pack, dir) = SavesOf(Str(p, "id")); return saves.Create(pack.Game.SteamAppId, dir, "вручную", auto: false) ?? throw new InvalidOperationException("Сохранений пока нет — сначала поиграй."); });
+        bridge.On("saves.restore", p => RestoreSave(Str(p, "id"), Str(p, "backup")));
+        bridge.On("saves.delete", p => { var (pack, _) = SavesOf(Str(p, "id")); saves.Delete(pack.Game.SteamAppId, Str(p, "backup")); return (object?)null; });
+        bridge.On("saves.open", p => OpenFolder(SavesOf(Str(p, "id")).dir));
 
         bridge.On("shell.openUrl", p =>
         {
             var url = Str(p, "url");
             if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
                 !url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("РњРѕР¶РЅРѕ РѕС‚РєСЂС‹РІР°С‚СЊ С‚РѕР»СЊРєРѕ РІРµР±-СЃСЃС‹Р»РєРё.");
+                throw new InvalidOperationException("Можно открывать только веб-ссылки.");
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             return (object?)null;
         });
@@ -204,8 +226,8 @@ sealed class Api
     async Task<object?> ApplyUpdate()
     {
         if (updateApplied) return new { update!.Version };
-        if (busy) throw new InvalidOperationException("РЎРµР№С‡Р°СЃ РёРґС‘С‚ СѓСЃС‚Р°РЅРѕРІРєР° СЃР±РѕСЂРєРё вЂ” РѕР±РЅРѕРІР»СЋ ModCrew РїРѕСЃР»Рµ РЅРµС‘.");
-        update ??= await Updater.CheckAsync() ?? throw new InvalidOperationException("РќРѕРІС‹С… РІРµСЂСЃРёР№ РЅРµС‚.");
+        if (busy) throw new InvalidOperationException("Сейчас идёт установка сборки — обновлю ModCrew после неё.");
+        update ??= await Updater.CheckAsync() ?? throw new InvalidOperationException("Новых версий нет.");
         var info = update;
         busy = true;
         try
@@ -277,7 +299,7 @@ sealed class Api
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "РџР°РїРєР°, РіРґРµ Р»РµР¶РёС‚ РёРіСЂР° (С‚Р°Рј, РіРґРµ РµС‘ .exe)",
+            Description = "Папка, где лежит игра (там, где её .exe)",
             UseDescriptionForTitle = true,
             InitialDirectory = GameDir(appId) ?? "",
         };
@@ -289,7 +311,7 @@ sealed class Api
 
     static object? OpenFolder(string? dir)
     {
-        if (dir == null || !Directory.Exists(dir)) throw new DirectoryNotFoundException("РџР°РїРєР° РЅРµ РЅР°Р№РґРµРЅР°.");
+        if (dir == null || !Directory.Exists(dir)) throw new DirectoryNotFoundException("Папка не найдена.");
         Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
         return null;
     }
@@ -312,6 +334,7 @@ sealed class Api
                     appId = p.Game.SteamAppId,
                     name = game?.Name ?? p.Game.Name ?? $"App {p.Game.SteamAppId}",
                     found = GameDir(p.Game.SteamAppId) != null,
+                    savesDefault = SaveBackups.KnownSaves(p.Game.SteamAppId),
                     images = GameImages(p.Game.SteamAppId),
                 },
                 installed = record == null ? null : new { version = record.Version, complete = record.Complete, at = record.InstalledAt },
@@ -332,7 +355,7 @@ sealed class Api
 
     object Create(string name, int appId)
     {
-        if (string.IsNullOrWhiteSpace(name)) throw new InvalidDataException("Р’РІРµРґРё РЅР°Р·РІР°РЅРёРµ СЃР±РѕСЂРєРё.");
+        if (string.IsNullOrWhiteSpace(name)) throw new InvalidDataException("Введи название сборки.");
         var game = SteamGames().FirstOrDefault(g => g.AppId == appId);
         return library.Create(name, appId, game?.Name, Environment.UserName).Id;
     }
@@ -341,15 +364,15 @@ sealed class Api
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Р¤Р°Р№Р» РјРѕРґР°",
-            Filter = "РњРѕРґС‹ Рё СѓСЃС‚Р°РЅРѕРІС‰РёРєРё (*.zip;*.dll;*.exe;*.msi)|*.zip;*.dll;*.exe;*.msi|Р’СЃРµ С„Р°Р№Р»С‹|*.*",
+            Title = "Файл мода",
+            Filter = "Моды и установщики (*.zip;*.dll;*.exe;*.msi)|*.zip;*.dll;*.exe;*.msi|Все файлы|*.*",
         };
         return dialog.ShowDialog(owner) == DialogResult.OK ? AddFileFrom(id, dialog.FileName, appId) : null;
     }
 
     object AddFileFrom(string id, string source, int appId)
     {
-        if (!File.Exists(source)) throw new FileNotFoundException($"Р¤Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ: {source}");
+        if (!File.Exists(source)) throw new FileNotFoundException($"Файл не найден: {source}");
         var rel = library.AddFile(id, source);
         var info = Authoring.Inspect(library.FilePath(id, rel), GameDir(appId));
         info.PackPath = "{pack}/" + rel;
@@ -400,8 +423,8 @@ sealed class Api
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "РћР±Р»РѕР¶РєР° СЃР±РѕСЂРєРё",
-            Filter = "РљР°СЂС‚РёРЅРєРё (*.jpg;*.jpeg;*.png;*.webp)|*.jpg;*.jpeg;*.png;*.webp",
+            Title = "Обложка сборки",
+            Filter = "Картинки (*.jpg;*.jpeg;*.png;*.webp)|*.jpg;*.jpeg;*.png;*.webp",
         };
         if (dialog.ShowDialog(owner) != DialogResult.OK) return null;
         var cover = library.SetCover(id, dialog.FileName);
@@ -435,14 +458,14 @@ sealed class Api
         string? picked;
         if (kind == "file")
         {
-            using var dialog = new OpenFileDialog { Title = "Р’С‹Р±РµСЂРё С„Р°Р№Р»", InitialDirectory = game ?? "" };
+            using var dialog = new OpenFileDialog { Title = "Выбери файл", InitialDirectory = game ?? "" };
             picked = dialog.ShowDialog(owner) == DialogResult.OK ? dialog.FileName : null;
         }
         else
         {
             using var dialog = new FolderBrowserDialog
             {
-                Description = "Р’С‹Р±РµСЂРё РїР°РїРєСѓ (РІРЅСѓС‚СЂРё РїР°РїРєРё РёРіСЂС‹)", UseDescriptionForTitle = true, InitialDirectory = game ?? "",
+                Description = "Выбери папку (внутри папки игры)", UseDescriptionForTitle = true, InitialDirectory = game ?? "",
             };
             picked = dialog.ShowDialog(owner) == DialogResult.OK ? dialog.SelectedPath : null;
         }
@@ -466,15 +489,15 @@ sealed class Api
             if (full.StartsWith(root + "\\", StringComparison.OrdinalIgnoreCase))
                 return $"{{{name}}}/" + full[(root.Length + 1)..].Replace('\\', '/');
         }
-        throw new InvalidOperationException("Р­С‚Рѕ РјРµСЃС‚Рѕ РІРЅРµ РїР°РїРєРё РёРіСЂС‹ Рё РїР°РїРѕРє СЃРѕС…СЂР°РЅРµРЅРёР№ вЂ” Сѓ РґСЂСѓР·РµР№ С‚Р°РєРѕРіРѕ РїСѓС‚Рё РЅРµ Р±СѓРґРµС‚.");
+        throw new InvalidOperationException("Это место вне папки игры и папок сохранений — у друзей такого пути не будет.");
     }
 
     object? ImportFile()
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Р”РѕР±Р°РІРёС‚СЊ СЃР±РѕСЂРєСѓ",
-            Filter = "РЎР±РѕСЂРєР° ModCrew (*.modcrew)|*.modcrew|Р’СЃРµ С„Р°Р№Р»С‹|*.*",
+            Title = "Добавить сборку",
+            Filter = "Сборка ModCrew (*.modcrew)|*.modcrew|Все файлы|*.*",
         };
         return dialog.ShowDialog(owner) == DialogResult.OK ? library.Import(dialog.FileName).Id : null;
     }
@@ -483,7 +506,7 @@ sealed class Api
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "РџР°РїРєР° СЃР±РѕСЂРєРё (СЃ С„Р°Р№Р»РѕРј pack.json)",
+            Description = "Папка сборки (с файлом pack.json)",
             UseDescriptionForTitle = true,
         };
         return dialog.ShowDialog(owner) == DialogResult.OK ? library.Import(dialog.SelectedPath).Id : null;
@@ -494,8 +517,8 @@ sealed class Api
         var pack = library.Get(id);
         using var dialog = new SaveFileDialog
         {
-            Title = "РЎРѕС…СЂР°РЅРёС‚СЊ СЃР±РѕСЂРєСѓ РґР»СЏ РґСЂСѓР·РµР№",
-            Filter = "РЎР±РѕСЂРєР° ModCrew (*.modcrew)|*.modcrew",
+            Title = "Сохранить сборку для друзей",
+            Filter = "Сборка ModCrew (*.modcrew)|*.modcrew",
             FileName = $"{pack.Id}-{pack.Version}{PackLibrary.Extension}",
         };
         if (dialog.ShowDialog(owner) != DialogResult.OK) return null;
@@ -506,27 +529,30 @@ sealed class Api
 
     object? RemovePack(string id)
     {
-        if (installs.Get(id) != null) throw new InvalidOperationException("РЎРЅР°С‡Р°Р»Р° СѓРґР°Р»Рё СЃР±РѕСЂРєСѓ РёР· РёРіСЂС‹.");
+        if (installs.Get(id) != null) throw new InvalidOperationException("Сначала удали сборку из игры.");
         library.Remove(id);
         return null;
     }
 
     // ---------------------------------------------------------------- install
 
-    async Task<object?> Install(string id)
+    async Task<object?> Install(string id, bool repair = false)
     {
-        if (busy) throw new InvalidOperationException("РЈР¶Рµ РёРґС‘С‚ СѓСЃС‚Р°РЅРѕРІРєР°.");
+        if (busy) throw new InvalidOperationException("Уже идёт установка.");
         busy = true;
         try
         {
             var pack = library.Get(id);
             var dir = GameDir(pack.Game.SteamAppId)
-                      ?? throw new DirectoryNotFoundException($"РРіСЂР° В«{pack.Game.Name ?? pack.Game.SteamAppId.ToString()}В» РЅРµ РЅР°Р№РґРµРЅР°. РЈСЃС‚Р°РЅРѕРІРё РµС‘ РІ Steam РёР»Рё СѓРєР°Р¶Рё РїР°РїРєСѓ РІСЂСѓС‡РЅСѓСЋ РЅР° РІРєР»Р°РґРєРµ В«РРіСЂС‹В».");
+                      ?? throw new DirectoryNotFoundException($"Игра «{pack.Game.Name ?? pack.Game.SteamAppId.ToString()}» не найдена. Установи её в Steam или укажи папку вручную на вкладке «Игры».");
             var progress = new Progress<InstallProgress>(p => bridge.Emit("install.progress", new
             {
                 packId = id, step = p.Step, total = p.TotalSteps, mod = p.Mod, text = p.Text, fraction = p.Fraction,
             }));
-            await installs.InstallAsync(id, dir, progress, bridge.Ask);
+            ((IProgress<InstallProgress>)progress).Report(new InstallProgress(0, 0, "", "Сохраняю бэкап сохранений…"));
+            await Task.Run(() => AutoBackup(pack, dir, repair ? $"перед починкой «{pack.Name}»" : $"перед установкой «{pack.Name}» {pack.Version}"));
+            if (repair) await installs.RepairAsync(id, progress, bridge.Ask);
+            else await installs.InstallAsync(id, dir, progress, bridge.Ask);
             return null;
         }
         finally
@@ -537,8 +563,76 @@ sealed class Api
 
     object? Uninstall(string id)
     {
-        if (busy) throw new InvalidOperationException("РЎРµР№С‡Р°СЃ РёРґС‘С‚ СѓСЃС‚Р°РЅРѕРІРєР°.");
+        if (busy) throw new InvalidOperationException("Сейчас идёт установка.");
+        var pack = library.Get(id);
+        AutoBackup(pack, GameDir(pack.Game.SteamAppId), $"перед удалением «{pack.Name}»");
         installs.Uninstall(id);
         return null;
+    }
+
+    // ---------------------------------------------------------------- saves
+
+    /// <summary>Snapshot before something touches the game. Never blocks the install: a failed backup only warns.</summary>
+    void AutoBackup(PackManifest pack, string? gameDir, string reason)
+    {
+        try
+        {
+            var dir = SaveBackups.SavesDir(pack, gameDir);
+            if (dir != null) saves.Create(pack.Game.SteamAppId, dir, reason, auto: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            bridge.Emit("toast", new { text = $"Не получилось сделать бэкап сохранений: {e.Message}", kind = "error" });
+        }
+    }
+
+    (PackManifest pack, string dir) SavesOf(string id)
+    {
+        var pack = library.Get(id);
+        var dir = SaveBackups.SavesDir(pack, GameDir(pack.Game.SteamAppId))
+                  ?? throw new InvalidOperationException("Для этой игры не указана папка сохранений — её можно задать в редакторе сборки.");
+        return (pack, dir);
+    }
+
+    object SavesList(string id)
+    {
+        var pack = library.Get(id);
+        string? dir;
+        try { dir = SaveBackups.SavesDir(pack, GameDir(pack.Game.SteamAppId)); }
+        catch (InvalidDataException) { dir = null; }
+        catch (UnauthorizedAccessException) { dir = null; }
+        return new
+        {
+            dir,
+            exists = dir != null && Directory.Exists(dir),
+            backups = dir == null ? new List<SaveBackup>() : saves.List(pack.Game.SteamAppId),
+        };
+    }
+
+    object? RestoreSave(string id, string backup)
+    {
+        if (busy) throw new InvalidOperationException("Сейчас идёт установка.");
+        var (pack, dir) = SavesOf(id);
+        var gameDir = GameDir(pack.Game.SteamAppId);
+        if (gameDir != null && GameRunning(gameDir))
+            throw new InvalidOperationException("Сначала закрой игру — иначе она перезапишет сохранение при выходе.");
+        saves.Restore(pack.Game.SteamAppId, backup, dir);
+        return null;
+    }
+
+    /// <summary>Any process started from the game folder.</summary>
+    static bool GameRunning(string gameDir)
+    {
+        var root = Path.GetFullPath(gameDir).TrimEnd('\\') + "\\";
+        foreach (var p in Process.GetProcesses())
+        {
+            try
+            {
+                if (p.MainModule?.FileName?.StartsWith(root, StringComparison.OrdinalIgnoreCase) == true) return true;
+            }
+            catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { }
+            finally { p.Dispose(); }
+        }
+        return false;
     }
 }

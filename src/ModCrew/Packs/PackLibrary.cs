@@ -102,6 +102,7 @@ public sealed class PackLibrary
         {
             Id = id, Name = name.Trim(), Version = "1.0.0", Author = author,
             Game = new GameRef { SteamAppId = steamAppId, Name = gameName },
+            Saves = Saves.SaveBackups.KnownSaves(steamAppId),
         };
         manifest.Validate();
         Directory.CreateDirectory(Path.Combine(DirOf(id), FilesDir));

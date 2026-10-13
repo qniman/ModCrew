@@ -1,12 +1,14 @@
 <script>
-  import { app, refresh, run, confirm, installPack, statusOf, statusLabel, steamCdn, navigate } from '../lib/state.svelte.js';
+  import { app, refresh, run, confirm, installPack, playPack, statusOf, statusLabel, steamCdn, navigate } from '../lib/state.svelte.js';
   import { call } from '../lib/api.js';
   import Icon from '../lib/Icon.svelte';
   import Cover from '../lib/Cover.svelte';
+  import SavesBox from '../lib/SavesBox.svelte';
 
   let view = $derived(app.packs.find((p) => p.pack.id === app.packId));
   let status = $derived(view ? statusOf(view) : 'available');
   let inst = $derived(app.install?.packId === view?.pack.id ? app.install : null);
+  let busy = $derived(!!(app.install && !app.install.done && !app.install.error));
   let percent = $derived(
     inst && inst.total ? Math.min(100, ((inst.step - 1 + (inst.fraction ?? (inst.done ? 1 : 0.5))) / inst.total) * 100) : inst?.done ? 100 : 3,
   );
@@ -73,9 +75,18 @@
         </div>
 
         <div class="actions">
-          <button class="btn primary big" disabled={status === 'installing' || status === 'nogame' || !!(app.install && !app.install.done && !app.install.error)} onclick={() => installPack(view)}>
-            <Icon name={primary[status].icon} /> {primary[status].label}
-          </button>
+          {#if status === 'installed'}
+            <button class="btn primary big play" disabled={busy || !!app.checking} onclick={() => playPack(view)}>
+              {#if app.checking === view.pack.id}<span class="spin-sm"></span> Проверяю моды…{:else}<Icon name="play" /> Играть{/if}
+            </button>
+          {:else}
+            <button class="btn primary big" disabled={status === 'installing' || status === 'nogame' || busy} onclick={() => installPack(view)}>
+              <Icon name={primary[status].icon} /> {primary[status].label}
+            </button>
+            {#if status === 'update'}
+              <button class="btn big" disabled={busy || !!app.checking} onclick={() => playPack(view)}><Icon name="play" /> Играть так</button>
+            {/if}
+          {/if}
           {#if view.installed}
             <button class="btn big danger" disabled={status === 'installing'} onclick={uninstall}><Icon name="undo" /> Удалить из игры</button>
           {/if}
@@ -97,7 +108,7 @@
           </div>
           <div class="p-text">
             <div class="p-title">
-              {#if inst.done}Готово! Запускай игру{:else if inst.error}Не получилось{:else}{inst.mod || 'Подготовка'}{/if}
+              {#if inst.done}{inst.repair ? 'Починил — запускаю игру' : 'Готово! Запускай игру'}{:else if inst.error}Не получилось{:else}{inst.mod || (inst.repair ? 'Починка' : 'Подготовка')}{/if}
             </div>
             <div class="p-sub">{inst.error ?? (inst.done ? `Установлено модов: ${view.pack.mods.length}` : inst.text)}</div>
           </div>
@@ -134,6 +145,10 @@
             {/if}
           </div>
         {/each}
+
+        {#key view.pack.id + (view.installed?.at ?? '') + (app.install?.done ?? '')}
+          <SavesBox {view} />
+        {/key}
       </section>
 
       <aside class="side">
@@ -152,6 +167,9 @@
           </div>
         </div>
         <div class="box links">
+          {#if status === 'installed'}
+            <button class="btn ghost" disabled={busy} onclick={() => installPack(view)}><Icon name="refresh" size={16} /> Переустановить</button>
+          {/if}
           <button class="btn ghost" onclick={() => run('games.open', { appId: view.game.appId })}><Icon name="folder" size={16} /> Папка игры</button>
           <button class="btn ghost" onclick={() => run('packs.openFolder', { id: view.pack.id })}><Icon name="packs" size={16} /> Файлы сборки</button>
           <button class="btn ghost danger" disabled={!!view.installed} title={view.installed ? 'Сначала удали из игры' : ''} onclick={removePack}><Icon name="trash" size={16} /> Убрать из списка</button>
@@ -242,6 +260,8 @@
   .box p { color: var(--muted); font-size: 13px; margin: 0 0 14px; line-height: 1.55; }
   .box p:last-child { margin: 0; }
   .box-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .play { min-width: 190px; justify-content: center; }
+  .spin-sm { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, 0.35); border-top-color: white; animation: spin 0.8s linear infinite; }
   .links { display: flex; flex-direction: column; gap: 2px; padding: 8px; }
   .links .btn { justify-content: flex-start; }
 

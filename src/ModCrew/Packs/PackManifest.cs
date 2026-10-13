@@ -16,6 +16,8 @@ public sealed class PackManifest
     /// <summary>Image path relative to the pack folder.</summary>
     public string? Cover { get; set; }
     public GameRef Game { get; set; } = new();
+    /// <summary>Where the game keeps saves, e.g. "{locallow}/Amistech/My Summer Car": backed up before installs.</summary>
+    public string? Saves { get; set; }
     public List<ModEntry> Mods { get; set; } = new();
 
     static readonly Regex IdPattern = new("^[a-z0-9][a-z0-9._-]{0,63}$");

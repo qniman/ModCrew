@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ModCrew</RootNamespace>
     <AssemblyName>ModCrew</AssemblyName>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <Product>ModCrew</Product>
     <Authors>qniman</Authors>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>

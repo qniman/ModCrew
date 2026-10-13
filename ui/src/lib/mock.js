@@ -60,6 +60,11 @@ const packs = [
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const mockFiles = {};
+const mockBackups = [
+  { id: 'b3', at: new Date(Date.now() - 3600e3).toISOString(), reason: 'перед установкой «MSC с друзьями» 1.2.0', auto: true, size: 2_310_000, files: 25 },
+  { id: 'b2', at: '2026-10-10T21:14:00', reason: 'вручную', auto: false, size: 2_250_000, files: 24 },
+  { id: 'b1', at: '2026-10-01T18:00:00', reason: 'перед установкой «MSC с друзьями» 1.1.0', auto: true, size: 2_100_000, files: 22 },
+];
 const mockSettings = {
   autoUpdate: true, appearance: { theme: 'dark', accent: 'violet', scale: 1, animations: true },
   version: '0.2.0', devBuild: false, installed: true, exePath: 'C:\\Users\\you\\AppData\\Local\\Programs\\ModCrew\\ModCrew.exe',
@@ -165,6 +170,16 @@ export const mock = {
         }
         return mockZip({ url: params.url, sha256: '3f2a…e91c', name: params.url.split('/').pop() || 'mod.zip' });
       case 'packs.deleteFile': return null;
+      case 'install.verify': await wait(500); return params.id === 'msc-friends' ? { changed: ['Mods\\MSCLoader.dll', 'mysummercar_Data\\Managed\\Assembly-CSharp.dll'], count: 2 } : { changed: [], count: 0 };
+      case 'install.repair': return install(params.id, emit);
+      case 'game.launch': return null;
+      case 'saves.list':
+        return params.id === 'valheim-qol'
+          ? { dir: null, exists: false, backups: [] }
+          : { dir: 'C:\\Users\\you\\AppData\\LocalLow\\Amistech\\My Summer Car', exists: true, backups: mockBackups };
+      case 'saves.backup': mockBackups.unshift({ id: 'm' + Date.now(), at: new Date().toISOString(), reason: 'вручную', auto: false, size: 2_300_000, files: 25 }); return mockBackups[0];
+      case 'saves.restore': await wait(400); return null;
+      case 'saves.delete': mockBackups.splice(mockBackups.findIndex((b) => b.id === params.backup), 1); return null;
       case 'app.takeOpened': return null;
       case 'drop.files': {
         const packsIn = params.names.filter((n) => n.endsWith('.modcrew'));

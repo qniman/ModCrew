@@ -8,6 +8,18 @@
 - [ ] Auto-update off: only the «Новая версия → Обновить» card. «Проверить» in Settings: «последняя версия» / «есть новая».
 - [ ] Offline: no errors shown on start.
 
+## Play & repair
+- [ ] Installed pack: big «Играть»; with an update: «Обновить» + «Играть так». «Переустановить» is in the side links.
+- [ ] «Играть» with intact files: «Проверяю моды…» briefly, then Steam starts the game.
+- [ ] Delete a mod file / replace a game file the pack patched (simulates a Steam update) → «Часть модов пропала» with the list → «Починить и играть» → progress «Починка» → game starts; files back; «Удалить из игры» afterwards keeps the updated game file.
+- [ ] «Мои игры»: poster overlay «Играть» (pack installed) / «Запустить».
+
+## Save backups
+- [ ] MSC pack page: «Сохранения» with «Папка», «Бэкап сейчас»; list shows date, reason, size.
+- [ ] Install / update / repair / uninstall make an automatic backup («перед установкой «…» 1.2.0»); only the last 15 automatic ones are kept, manual ones stay.
+- [ ] «Вернуть»: refuses while the game runs; afterwards saves are as in the backup, and a «перед восстановлением» backup appeared.
+- [ ] Game without a known save folder: hint with «Открыть редактор»; editor field «Папка сохранений» (shows the default for known games); `{game}` alone or `{work}/…` → error in checks.
+
 ## Settings
 - [ ] Theme dark / light / «Как в Windows» (follows Windows switching live), title bar colour follows.
 - [ ] Accent colours recolour buttons, logo, toggles, nav; pack hero stays readable in light theme.

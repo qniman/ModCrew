@@ -1,5 +1,5 @@
 <script>
-  import { app, refresh, run, steamCdn } from '../lib/state.svelte.js';
+  import { app, refresh, run, steamCdn, playPack } from '../lib/state.svelte.js';
   import Icon from '../lib/Icon.svelte';
   import Cover from '../lib/Cover.svelte';
 
@@ -49,6 +49,11 @@
         <div class="poster">
           <Cover urls={[game.images.poster, steamCdn(game.appId, 'library_600x900.jpg'), game.images.header]} label={game.name} />
           <div class="overlay">
+            {#if game.installedPack}
+              <button class="btn primary" onclick={() => { const v = app.packs.find((p) => p.pack.id === game.installedPack.id); if (v) playPack(v); }}><Icon name="play" size={15} /> Играть</button>
+            {:else}
+              <button class="btn primary" onclick={() => run('game.launch', { appId: game.appId })}><Icon name="play" size={15} /> Запустить</button>
+            {/if}
             <button class="btn" onclick={() => run('games.open', { appId: game.appId })}><Icon name="folder" size={15} /> Открыть папку</button>
             <button class="btn ghost" onclick={() => setPath(game)}>Указать папку…</button>
           </div>

@@ -18,6 +18,8 @@ export const app = $state({
   toasts: [],
   /** settings.get result: autoUpdate, appearance, version, devBuild, installed, … */
   settings: null,
+  /** Pack id whose files are being checked before «Играть» */
+  checking: null,
   /** New version: {version, notes, pageUrl, state: 'available' | 'downloading' | 'ready', progress} */
   update: null,
 });
@@ -172,15 +174,44 @@ export async function run(method, params, success) {
   }
 }
 
-export async function installPack(view) {
+on('toast', (t) => toast(t.text, t.kind));
+
+/** «Играть»: check the installed files, offer to repair what a game update broke, then start through Steam. */
+export async function playPack(view) {
   const id = view.pack.id;
-  app.install = { packId: id, step: 0, total: 0, mod: '', text: 'Готовлюсь…', fraction: null, log: [] };
+  app.checking = id;
+  let result;
   try {
-    await call('install.run', { id });
+    result = await call('install.verify', { id });
+  } catch (e) {
+    toast(e.message, 'error');
+    return;
+  } finally {
+    app.checking = null;
+  }
+  if (result.count) {
+    const list = result.changed.slice(0, 5).join('\n') + (result.count > 5 ? `\n…и ещё ${result.count - 5}` : '');
+    const ok = await confirm('Часть модов пропала',
+      `Похоже, игра обновилась и затёрла файлы сборки (${result.count}):\n${list}\n\nModCrew поставит их заново, сохранения не тронет.`,
+      'Починить и играть', false, 'Не сейчас');
+    if (!ok) return;
+    if (!(await installPack(view, { repair: true }))) return;
+  }
+  await run('game.launch', { appId: view.game.appId });
+  toast(`Запускаю ${view.game.name}…`, 'ok');
+}
+
+export async function installPack(view, { repair = false } = {}) {
+  const id = view.pack.id;
+  app.install = { packId: id, step: 0, total: 0, mod: '', text: 'Готовлюсь…', fraction: null, log: [], repair };
+  try {
+    await call(repair ? 'install.repair' : 'install.run', { id });
     app.install.done = true;
-    toast(`«${view.pack.name}» установлена. Можно играть!`, 'ok');
+    if (!repair) toast(`«${view.pack.name}» установлена. Можно играть!`, 'ok');
+    return true;
   } catch (e) {
     app.install.error = e.cancelled ? 'Установка отменена — всё вернул как было.' : e.message;
+    return false;
   } finally {
     await refresh();
   }

@@ -16,6 +16,8 @@ button, exact rollback. Friends are not PC-savvy: UI text must be simple, everyt
 |---|---|
 | `src/ModCrew/MainForm.cs` | Window, WebView2 setup; UI is embedded (`wwwroot/*` resources) and served on `app.modcrew` via WebResourceRequested; folder hosts `packs.modcrew`, `steam.modcrew` (Steam librarycache) |
 | `Program.cs`, `Shell.cs` | Single instance (mutex + named pipe hands files to the running window), `.modcrew` association in HKCU (re-pointed to the running exe on every start) |
+| `Saves/SaveBackups.cs` | Zip snapshots of a game's save folder (`pack.saves` or the known-games table), auto before install/update/repair/uninstall (keep 15), restore snapshots the current state first |
+| `Install/InstallService.cs` (verify/repair) | Journal entries carry size/mtime/sha256 of what the install left; `Verify` lists changed files; `RepairAsync` turns files replaced by a game update into the new originals, then reinstalls |
 | `Update/Updater.cs` | GitHub Releases (`qniman/ModCrew`): latest release API, newer `ModCrew.exe` asset (sha256 from asset `digest` or `.sha256`), swap by renaming the running exe to `.old`; dev builds (`\bin\`) never update |
 | `Update/Setup.cs` | Per-user installer (exe named `*Setup*` → setup mode, `#setup` UI page), shortcuts via IShellLink, HKCU Uninstall entry, `--uninstall` (MessageBox flow) |
 | `Settings.cs` | settings.json: game paths, `AutoUpdate`, `Appearance` (theme dark/light/system, accent preset, scale = WebView zoom, animations) |
