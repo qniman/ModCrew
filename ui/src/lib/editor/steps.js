@@ -45,10 +45,10 @@ export const actions = {
     ],
   },
   run: {
-    label: 'Запустить программу', icon: 'play', color: '#fb923c',
+    label: 'Запустить установщик', icon: 'play', color: '#fb923c',
     fields: [
-      { key: 'path', label: 'Программа', kind: 'path-read' },
-      { key: 'args', label: 'Аргументы', kind: 'text', optional: true },
+      { key: 'path', label: 'Программа (.exe или .msi)', kind: 'path-read', programs: true },
+      { key: 'args', label: 'Аргументы', kind: 'text', optional: true, hint: 'Обычно не нужны. {game} подставится как папка игры.' },
     ],
   },
 };
@@ -66,7 +66,7 @@ export function describe(s) {
     case 'delete': return `Удалить ${s.path || '…'}`;
     case 'replaceText': return `Заменить текст в ${base(s.file) || 'файле'}`;
     case 'setIni': return `${base(s.file) || '.ini'}: ${s.section ? `[${s.section}] ` : ''}${s.key || 'ключ'} = ${s.value ?? ''}`;
-    case 'run': return `Запустить ${base(s.path) || 'программу'}`;
+    case 'run': return `Запустить установщик ${base(s.path) || ''}`.trim();
     default: return s.action;
   }
 }
@@ -97,28 +97,39 @@ export function newStep(action) {
 export function guessName(file) {
   const stem = file.replace(/\.[a-z0-9]{1,4}$/i, '');
   const m = stem.match(/^(.*?)[\s._-]*v?(\d+(?:\.\d+)+)$/i);
-  const clean = (s) => s.replace(/[._-]+/g, ' ').trim();
+  // "BeamMP_Installer" → "BeamMP": the mod is what gets installed, not the installer.
+  const clean = (s) => s.replace(/[._-]+/g, ' ').trim().replace(/\s+(installer|setup|install)$/i, '');
   return m && m[1] ? { name: clean(m[1]), version: m[2] } : { name: clean(stem), version: '' };
 }
 
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'mod';
 
 /**
- * Steps for a mod file the wizard inspected.
- * info: result of packs.addFile / packs.probeUrl; from: folder inside the archive ("" = all); to: target path.
+ * Steps for a mod file the wizard inspected (result of packs.addFile / packs.probeUrl).
+ * action "place": from = folder inside the archive ("" = all), to = target path.
+ * action "run": run = program inside the archive (for archives), args = its command line.
  */
-export function buildSteps(info, from, to) {
+export function buildSteps(info, { action = 'place', from = '', to = '{game}', run = '', args = '' } = {}) {
   const steps = [];
   let source = info.packPath; // file inside the pack
   if (info.url) {
     steps.push({ action: 'download', url: info.url, sha256: info.sha256, saveAs: info.name });
     source = info.name; // relative = {work}
   }
+  const tmp = `unpack-${slug(info.name.replace(/\.zip$/i, ''))}`;
+  if (action === 'run') {
+    if (info.kind === 'zip') {
+      steps.push({ action: 'extract', from: source, to: tmp });
+      steps.push({ action: 'run', path: `${tmp}/${run}`, args: args || undefined });
+    } else {
+      steps.push({ action: 'run', path: source, args: args || undefined });
+    }
+    return steps.map((s) => ({ _k: key(), ...s }));
+  }
   if (info.kind === 'zip') {
     if (!from) {
       steps.push({ action: 'extract', from: source, to });
     } else {
-      const tmp = `unpack-${slug(info.name.replace(/\.zip$/i, ''))}`;
       steps.push({ action: 'extract', from: source, to: tmp });
       steps.push({ action: 'copy', from: `${tmp}/${from}`, to, overwrite: true });
     }

@@ -29,6 +29,9 @@ sealed class Bridge
         });
     }
 
+    /// <summary>Paths of files sent along with the current message (drag &amp; drop from Explorer).</summary>
+    public List<string> Files { get; private set; } = new();
+
     public void OnAsync(string method, Func<JsonElement, Task<object?>> handler) => handlers[method] = handler;
 
     public void On(string method, Func<JsonElement, object?> handler) =>
@@ -46,6 +49,8 @@ sealed class Bridge
             var args = root.TryGetProperty("params", out var p) ? p.Clone() : default;
             if (!handlers.TryGetValue(method, out var handler))
                 throw new InvalidOperationException($"Unknown method {method}");
+            // Read before the first await: the next message would replace it.
+            Files = e.AdditionalObjects?.OfType<CoreWebView2File>().Select(f => f.Path).ToList() ?? new();
             var result = await handler(args);
             Post(new { id, ok = true, result });
         }

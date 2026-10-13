@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { app, init, navigate } from './lib/state.svelte.js';
+  import { app, init, navigate, dropFiles } from './lib/state.svelte.js';
   import { isMock } from './lib/api.js';
   import Icon from './lib/Icon.svelte';
   import PacksPage from './pages/PacksPage.svelte';
@@ -20,6 +20,33 @@
   ];
 
   const go = (page) => navigate(page);
+
+  // Files dragged from Explorer anywhere onto the window.
+  let dragging = $state(false);
+  let depth = 0;
+  const hasFiles = (e) => e.dataTransfer?.types?.includes('Files');
+  function dragenter(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth++;
+    dragging = true;
+  }
+  function dragleave(e) {
+    if (!hasFiles(e)) return;
+    if (--depth <= 0) dragging = false;
+  }
+  function dragover(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); // otherwise the WebView would navigate to the file
+    e.dataTransfer.dropEffect = 'copy';
+  }
+  function drop(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth = 0;
+    dragging = false;
+    if (e.dataTransfer.files.length) dropFiles(e.dataTransfer.files);
+  }
 
   let installedCount = $derived(app.packs.filter((p) => p.installed).length);
 </script>
@@ -75,6 +102,18 @@
   </main>
 </div>
 
+<svelte:window ondragenter={dragenter} ondragleave={dragleave} ondragover={dragover} ondrop={drop} />
+
+{#if dragging}
+  <div class="dropzone">
+    <div class="dz-box">
+      <Icon name={app.editId ? 'file' : 'packs'} size={36} />
+      <b>{app.editId ? 'Отпусти — добавлю мод в сборку' : 'Отпусти, чтобы добавить сборку'}</b>
+      <span>{app.editId ? '.zip, .dll, .exe — ModCrew посмотрит, что внутри' : 'файл .modcrew от друга'}</span>
+    </div>
+  </div>
+{/if}
+
 <AskDialog />
 <Toasts />
 
@@ -129,4 +168,16 @@
   .ver { opacity: 0.7; }
 
   main { overflow-y: auto; overflow-x: hidden; position: relative; }
+
+  .dropzone {
+    position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; pointer-events: none;
+    background: rgba(8, 9, 14, 0.7); backdrop-filter: blur(6px); animation: fade-up 0.15s;
+  }
+  .dz-box {
+    display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+    padding: 46px 70px; border-radius: 26px; border: 2px dashed rgba(124, 92, 255, 0.7);
+    background: rgba(124, 92, 255, 0.08); color: #b9a8ff;
+  }
+  .dz-box b { font-size: 20px; color: var(--text); }
+  .dz-box span { color: var(--muted); }
 </style>

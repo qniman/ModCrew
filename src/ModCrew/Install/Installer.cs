@@ -258,24 +258,45 @@ public sealed class Installer
     async Task Run(Step s)
     {
         var exe = paths.ForRead(Need(s.Path, "path"));
+        var name = Path.GetFileName(exe);
         if (!File.Exists(exe)) throw new FileNotFoundException($"Нет файла {s.Path}.");
         var ok = await ask(
-            "Запустить программу?",
-            $"Сборка хочет запустить {Path.GetFileName(exe)}{(string.IsNullOrEmpty(s.Args) ? "" : " " + s.Args)}.\n\n" +
-            "Это обычно установщик мода. Изменения, которые он сделает, ModCrew не сможет откатить автоматически.",
-            "Запустить");
-        if (!ok) throw new OperationCanceledException("Запуск отменён.");
+            "Сейчас откроется установщик",
+            $"«{modName}» ставится своим установщиком {name}.\n" +
+            "Пройди его до конца (обычно «Далее» → «Установить» → «Готово») — ModCrew подождёт и продолжит сам.\n\n" +
+            "Удалять эту программу потом нужно через «Параметры → Приложения»: кнопка «Удалить из игры» её не уберёт.",
+            "Открыть установщик");
+        if (!ok) throw new OperationCanceledException("Установка отменена.");
+
         var game = paths.Resolve("{game}");
-        using var process = Process.Start(new ProcessStartInfo(exe)
+        var args = s.Args == null ? "" : s.Args.Replace("{game}", game, StringComparison.OrdinalIgnoreCase);
+        bool msi = exe.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
+        var start = new ProcessStartInfo(msi ? "msiexec.exe" : exe)
         {
-            Arguments = s.Args == null ? "" : s.Args.Replace("{game}", game, StringComparison.OrdinalIgnoreCase),
+            Arguments = msi ? $"/i \"{exe}\" {args}".TrimEnd() : args,
             WorkingDirectory = Path.GetDirectoryName(exe)!,
             UseShellExecute = true,
-        }) ?? throw new InvalidOperationException("Программа не запустилась.");
-        Report($"Жду, пока закроется {Path.GetFileName(exe)}…");
-        await process.WaitForExitAsync(cancel);
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException($"{Path.GetFileName(exe)} завершилась с кодом {process.ExitCode}.");
+        };
+        Process? process;
+        try
+        {
+            process = Process.Start(start);
+        }
+        catch (System.ComponentModel.Win32Exception e) when (e.NativeErrorCode == 1223)
+        {
+            throw new OperationCanceledException("Установщику не дали права администратора — без них он не может работать.");
+        }
+        using (process)
+        {
+            if (process == null) throw new InvalidOperationException($"{name} не запустился.");
+            Report($"Жду, пока ты закончишь с установщиком {name}…");
+            await process.WaitForExitAsync(cancel);
+            // 1602 = the player pressed Cancel in an MSI installer.
+            if (process.ExitCode == 1602) throw new OperationCanceledException($"Установку {name} отменили.");
+            if (process.ExitCode != 0 && process.ExitCode != 3010) // 3010 = done, reboot suggested
+                throw new InvalidOperationException(
+                    $"Установщик {name} закрылся с ошибкой (код {process.ExitCode}). Если ты нажал «Отмена» — просто попробуй ещё раз.");
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 <script>
-  import { app, refresh, toast, confirm, navigate, installPack, steamCdn } from '../lib/state.svelte.js';
+  import { onMount } from 'svelte';
+  import { app, refresh, toast, confirm, navigate, installPack, steamCdn, dropTarget } from '../lib/state.svelte.js';
   import { call } from '../lib/api.js';
   import { actions, actionOrder, newStep, strip, withKeys, key, bumpVersion } from '../lib/editor/steps.js';
   import StepCard from '../lib/editor/StepCard.svelte';
@@ -41,6 +42,24 @@
     }, 400);
   });
 
+  // Files dropped onto the window go through the wizard one by one.
+  const dropQueue = [];
+  function nextDropped() {
+    if (wizard || !dropQueue.length) return;
+    wizard = { mode: 'drop', path: dropQueue.shift() };
+  }
+  function closeWizard() {
+    wizard = null;
+    nextDropped();
+  }
+  onMount(() => {
+    dropTarget.handler = (paths) => {
+      dropQueue.push(...paths);
+      nextDropped();
+    };
+    return () => (dropTarget.handler = null);
+  });
+
   const modProblems = (m) => problems.filter((p) => p.mod === m && p.step == null);
   const stepProblems = (m, s) => problems.filter((p) => p.mod === m && p.step === s);
   const modProblemCount = (m) => problems.filter((p) => p.mod === m).length;
@@ -60,7 +79,7 @@
       draft.mods.push(mod);
       expanded[mod._k] = true;
     }
-    wizard = null;
+    closeWizard();
   }
 
   function modId(name) {
@@ -240,7 +259,8 @@
               <div class="steps">
                 {#each mod.steps as step, s (step._k)}
                   <StepCard bind:step={mod.steps[s]} index={s} count={mod.steps.length} packId={id} appId={draft.game.steamAppId}
-                    problems={stepProblems(m, s)} onmove={(d) => move(mod.steps, s, s + d)} onremove={() => mod.steps.splice(s, 1)} />
+                    problems={stepProblems(m, s)} onmove={(d) => move(mod.steps, s, s + d)} onremove={() => mod.steps.splice(s, 1)}
+                    getOutputs={() => call('packs.stepOutputs', { id, pack: JSON.parse(json), mod: m, step: s })} />
                 {/each}
               </div>
 
@@ -267,8 +287,10 @@
 </div>
 
 {#if wizard}
-  <AddModDialog mode={wizard.mode} packId={id} appId={draft.game.steamAppId} append={wizard.modIndex != null}
-    onclose={() => (wizard = null)} onadd={onWizardAdd} />
+  {#key wizard}
+    <AddModDialog mode={wizard.mode} path={wizard.path} packId={id} appId={draft.game.steamAppId} append={wizard.modIndex != null}
+      onclose={closeWizard} onadd={onWizardAdd} />
+  {/key}
 {/if}
 
 <style>

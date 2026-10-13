@@ -12,16 +12,18 @@
 ```
 dotnet build src/ModCrew -c Release        # соберёт и UI (npm install при первом запуске)
 dotnet test tests/ModCrew.Tests
-dotnet publish src/ModCrew -c Release -r win-x64 --self-contained -o publish   # для друзей, без установки .NET
+dotnet publish src/ModCrew -p:PublishProfile=Friends   # publish\ModCrew.exe — один файл для друзей, .NET не нужен
 ```
+Друзьям отправляешь `ModCrew.exe` и `.modcrew`. После первого запуска `.modcrew` открываются двойным кликом.
 Нужны .NET SDK 8+ и Node.js. `-p:SkipUi=true` собирает только C#.
 
 **Разработка интерфейса:** `cd ui && npm run dev`: страница на http://localhost:5173 с мок-данными
 (`ui/src/lib/mock.js`), без exe. Чтобы exe грузил живой dev-сервер: `set MODCREW_DEV_URL=http://localhost:5173`.
 
 ## Как сделать сборку
-«Сборки» → «Новая сборка» → выбрал игру → «Мод из файла» (zip/dll с диска, в том числе скачанные с Nexus)
-или «По ссылке» (прямая https-ссылка). ModCrew заглянет в архив, подскажет, куда класть, и сам составит шаги;
+«Сборки» → «Новая сборка» → выбрал игру → перетащи файлы модов в окно или «Мод из файла» (zip/dll/exe с диска,
+в том числе скачанные с Nexus), или «По ссылке» (прямая https-ссылка). ModCrew заглянет в файл и предложит
+«Положить в папку игры» (подскажет куда) или «Запустить установщик» (для модов вроде BeamMP), и сам составит шаги;
 шаги можно поправить вручную. Ошибки подсвечиваются сразу. «Установить и проверить» → «Сохранить .modcrew» → друзьям.
 
 ## Формат сборки

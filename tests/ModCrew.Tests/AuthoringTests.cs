@@ -109,6 +109,51 @@ public sealed class AuthoringTests : IDisposable
     }
 
     [Fact]
+    public void Inspect_RecognisesInstallers()
+    {
+        var setupZip = Authoring.Inspect(Zip("BeamMP_Installer.exe"), game);
+        Assert.Equal("run", setupZip.SuggestAction);
+        Assert.Equal("BeamMP_Installer.exe", setupZip.SuggestRun);
+
+        var exe = Path.Combine(root, "Launcher.exe");
+        File.WriteAllText(exe, "MZ");
+        Assert.Equal("run", Authoring.Inspect(exe, game).SuggestAction);
+
+        // A mod laid out like the game stays "place" even if it carries a tool.
+        var modZip = Authoring.Inspect(Zip("BepInEx/plugins/a.dll", "BepInEx/tool.exe", "x.txt", "y.txt"), game);
+        Assert.Equal("place", modZip.SuggestAction);
+    }
+
+    [Fact]
+    public void StepOutputs_AndCheck_FollowFilesThroughWork()
+    {
+        var pack = library.Create("Outputs", 1, null, null);
+        var src = Path.Combine(root, "BeamMP_Installer.zip");
+        File.Copy(Zip("BeamMP_Installer.exe", "readme.txt"), src);
+        var rel = library.AddFile(pack.Id, src);
+        pack.Mods.Add(new ModEntry
+        {
+            Name = "BeamMP",
+            Steps =
+            {
+                new Step { Action = "download", Url = "https://example.com/tool.exe" },
+                new Step { Action = "extract", From = "{pack}/" + rel, To = "unpack-beammp" },
+                new Step { Action = "run", Path = "unpack-beammp/BeamMP_Installer.exe" },
+                new Step { Action = "run", Path = "BeamMP_Installer.exe" },     // wrong: not where it was unpacked
+                new Step { Action = "run", Path = "{work}/tool.exe" },
+            },
+        });
+        var cache = Path.Combine(root, "cache");
+
+        var outputs = Authoring.StepOutputs(library, pack.Id, pack, 0, 2, cache);
+        Assert.Equal(new[] { "tool.exe", "unpack-beammp/BeamMP_Installer.exe", "unpack-beammp/readme.txt" }, outputs);
+
+        var problems = Authoring.Check(library, pack.Id, pack, cache).Where(p => p.Level == "error").ToList();
+        Assert.Single(problems);
+        Assert.Equal(3, problems[0].Step);
+    }
+
+    [Fact]
     public void FilePath_RefusesEscapes()
     {
         var pack = library.Create("Esc", 1, null, null);

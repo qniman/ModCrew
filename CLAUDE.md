@@ -14,7 +14,9 @@ button, exact rollback. Friends are not PC-savvy: UI text must be simple, everyt
 ## Layout
 | | |
 |---|---|
-| `src/ModCrew/MainForm.cs` | Window, WebView2 setup, virtual hosts `app.modcrew` (wwwroot), `packs.modcrew`, `steam.modcrew` (Steam librarycache) |
+| `src/ModCrew/MainForm.cs` | Window, WebView2 setup; UI is embedded (`wwwroot/*` resources) and served on `app.modcrew` via WebResourceRequested; folder hosts `packs.modcrew`, `steam.modcrew` (Steam librarycache) |
+| `Program.cs`, `Shell.cs` | Single instance (mutex + named pipe hands files to the running window), `.modcrew` association in HKCU (re-pointed to the running exe on every start) |
+| `Properties/PublishProfiles/Friends.pubxml` | `dotnet publish src/ModCrew -p:PublishProfile=Friends` → one self-contained `publish\ModCrew.exe` |
 | `Bridge.cs` | UI↔host messages `{id, method, params}` → `{id, ok, result/error}`, events `{event, data}`, `Ask()` confirm in UI |
 | `Api.cs` | All bridge methods (`games.*`, `packs.*`, `install.*`, `shell.openUrl`) |
 | `Steam/` | Registry → `libraryfolders.vdf` → `appmanifest_*.acf`; cached images |
@@ -31,13 +33,15 @@ button, exact rollback. Friends are not PC-savvy: UI text must be simple, everyt
 - Every write outside `{work}` goes through `Journal` first. Writes limited to `{game}`, `{work}`, subfolders of user dirs; ModCrew's own data is off-limits.
 - One installed pack per game; reinstall = uninstall old + install new.
 - Bridge: sync handlers via `On`, async via `OnAsync` (don't merge them — a lambda returning null picked the Task overload).
-- Csproj builds the UI (`npm run build`) and links `ui/dist/**` into `wwwroot`; `-p:SkipUi=true` to skip.
+- Csproj builds the UI (`npm run build`) and embeds `ui/dist/**` as `wwwroot/…` resources; `-p:SkipUi=true` to skip (then the exe has no UI).
 
 ## Decisions
+- Mods with their own installer (BeamMP…): wizard action «Запустить установщик» → extract + `run`. Not rolled back; friends are told on the pack page, in the run prompt and in the uninstall prompt.
+- Drag & drop: JS sends `File` objects via `postMessageWithAdditionalObjects`, `Bridge.Files` has the real paths. `.modcrew` → import anywhere; other files → editor wizard (`dropTarget.handler`).
 - Nexus mods: the author downloads them and embeds the file in the pack («Мод из файла»); no manual-download step.
 - Files picked from disk are always embedded into `files/`. URLs only for direct https downloads (GitHub releases).
 - Saving from the editor rewrites pack.json (comments are lost).
 
 ## Next (agreed direction, not built)
 - Hosting packs (GitHub repo/Releases) + update notifications; for now packs are files sent to friends.
-- File association for `.modcrew` (double-click to import), drag & drop import, 7z/rar, app icon, self-update.
+- 7z/rar archives, self-update of ModCrew.exe.

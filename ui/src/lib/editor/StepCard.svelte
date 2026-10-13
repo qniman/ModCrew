@@ -3,7 +3,7 @@
   import PathField from './PathField.svelte';
   import Icon from '../Icon.svelte';
 
-  let { step = $bindable(), index, count, packId, appId, problems = [], onmove, onremove } = $props();
+  let { step = $bindable(), index, count, packId, appId, problems = [], onmove, onremove, getOutputs = null } = $props();
 
   let def = $derived(actions[step.action]);
   // svelte-ignore state_referenced_locally
@@ -46,6 +46,7 @@
             <span class="lbl">{f.label}{#if f.optional}<i> — необязательно</i>{/if}</span>
             {#if f.kind.startsWith('path')}
               <PathField bind:value={step[f.key]} kind={f.kind} {packId} {appId} placeholder={f.placeholder ?? ''}
+                {getOutputs} programs={!!f.programs}
                 invalid={!f.optional && !step[f.key] && hasError} />
             {:else if f.kind === 'multiline'}
               <textarea class="mono" rows="3" bind:value={step[f.key]} spellcheck="false"></textarea>

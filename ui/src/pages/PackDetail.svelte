@@ -20,8 +20,16 @@
     installing: { label: 'Устанавливается…', icon: 'download' },
   };
 
+  // Programs the pack runs as installers: they install themselves, outside our rollback.
+  let installers = $derived(
+    view ? [...new Set(view.pack.mods.flatMap((m) => m.steps.filter((s) => s.action === 'run' && s.path).map((s) => s.path.split(/[\\/]/).pop())))] : [],
+  );
+
   async function uninstall() {
-    if (!(await confirm('Удалить моды из игры?', `Игра вернётся в состояние до установки «${view.pack.name}». Сама сборка останется в списке.`, 'Удалить из игры', true))) return;
+    const extra = installers.length
+      ? `\n\nПрограммы, которые ставили установщики (${installers.join(', ')}), так не удалятся — их убирают через «Параметры → Приложения».`
+      : '';
+    if (!(await confirm('Удалить моды из игры?', `Игра вернётся в состояние до установки «${view.pack.name}». Сама сборка останется в списке.${extra}`, 'Удалить из игры', true))) return;
     await run('install.uninstall', { id: view.pack.id }, 'Готово — игра как до установки.');
     if (app.install?.packId === view.pack.id) app.install = null;
     await refresh();
@@ -72,6 +80,9 @@
             <button class="btn big danger" disabled={status === 'installing'} onclick={uninstall}><Icon name="undo" /> Удалить из игры</button>
           {/if}
         </div>
+        {#if installers.length && (status === 'available' || status === 'update')}
+          <p class="info-note"><Icon name="play" size={15} /> Во время установки откроется установщик {installers.join(', ')} — пройди его до конца, ModCrew подождёт.</p>
+        {/if}
         {#if status === 'nogame'}
           <p class="warn"><Icon name="alert" size={16} /> Игра «{view.game.name}» не найдена. Установи её в Steam или укажи папку на вкладке «Мои игры».</p>
         {/if}
@@ -172,6 +183,8 @@
   .meta span:not(.pill) { display: inline-flex; align-items: center; gap: 5px; }
   .dim { color: var(--faint); }
   .actions { display: flex; gap: 10px; }
+  .info-note { display: flex; align-items: center; gap: 8px; color: #fcd9a8; margin: 16px 0 0; font-size: 13.5px; }
+  .info-note :global(svg) { color: #fb923c; flex: none; }
   .warn { display: flex; align-items: center; gap: 8px; color: var(--warn); margin: 16px 0 0; }
 
   .progress {

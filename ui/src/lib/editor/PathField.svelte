@@ -3,10 +3,16 @@
   import { toast } from '../state.svelte.js';
   import Icon from '../Icon.svelte';
 
-  let { value = $bindable(), kind = 'path-write', packId, appId, placeholder = '', invalid = false } = $props();
+  /** getOutputs(): files earlier steps leave in the temporary folder; programs: show only .exe/.msi first. */
+  let { value = $bindable(), kind = 'path-write', packId, appId, placeholder = '', invalid = false, getOutputs = null, programs = false } = $props();
 
   let open = $state(false);
   let files = $state([]);
+  let outputs = $state([]);
+
+  const isProgram = (f) => /\.(exe|msi)$/i.test(f);
+  let shownOutputs = $derived((programs ? outputs.filter(isProgram) : outputs).slice(0, 60));
+  let shownFiles = $derived(files.filter((f) => !f.startsWith('cover.') && (!programs || isProgram(f))));
   let root;
 
   const vars = [
@@ -21,7 +27,12 @@
 
   async function toggle() {
     open = !open;
-    if (open && kind === 'path-read') files = await call('packs.files', { id: packId }).catch(() => []);
+    if (open && kind === 'path-read') {
+      [files, outputs] = await Promise.all([
+        call('packs.files', { id: packId }).catch(() => []),
+        getOutputs ? getOutputs().catch(() => []) : [],
+      ]);
+    }
   }
 
   function set(v) {
@@ -70,11 +81,17 @@
   {#if open}
     <div class="pop">
       {#if kind === 'path-read'}
+        {#if shownOutputs.length}
+          <div class="sect">Из предыдущих шагов</div>
+          {#each shownOutputs as f}
+            <button class="opt" onclick={() => set(f)}><Icon name={isProgram(f) ? 'play' : 'file'} size={14} /> <span class="mono">{f}</span></button>
+          {/each}
+        {/if}
         <div class="sect">Файлы сборки</div>
-        {#each files.filter((f) => !f.startsWith('cover.')) as f}
+        {#each shownFiles as f}
           <button class="opt" onclick={() => set(`{pack}/${f}`)}><Icon name="file" size={14} /> <span class="mono">{f}</span></button>
         {:else}
-          <div class="empty">В сборке пока нет файлов</div>
+          <div class="empty">{programs ? 'Программ в сборке нет' : 'В сборке пока нет файлов'}</div>
         {/each}
         <button class="opt accent" onclick={addFile}><Icon name="plus" size={14} /> Добавить файл в сборку…</button>
         <button class="opt" onclick={() => pick('file')}><Icon name="search" size={14} /> Файл в папке игры…</button>

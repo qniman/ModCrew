@@ -99,8 +99,8 @@
       <div class="empty-art"><Icon name="packs" size={40} /></div>
       <h2>Сборок пока нет</h2>
       <p>
-        Попроси друга прислать файл <code>.modcrew</code> и нажми «Добавить сборку».<br />
-        Потом выбери её и жми «Установить» — ModCrew всё сделает сам.
+        Попроси друга прислать файл <code>.modcrew</code> и открой его двойным кликом<br />
+        (или перетащи в это окно). Потом жми «Установить» — ModCrew всё сделает сам.
       </p>
       <div class="empty-actions">
         <button class="btn primary big" onclick={importFile}><Icon name="plus" /> Добавить сборку</button>

@@ -18,7 +18,4 @@ static class AppPaths
     public static string WebView => Path.Combine(Data, "webview");
 
     public static string Settings => Path.Combine(Data, "settings.json");
-
-    /// <summary>The built UI shipped next to the exe.</summary>
-    public static string WwwRoot => Path.Combine(AppContext.BaseDirectory, "wwwroot");
 }

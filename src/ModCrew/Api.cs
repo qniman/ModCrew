@@ -24,11 +24,27 @@ sealed class Api
 
     public string? SteamPath => steamPath;
 
-    public Api(Bridge bridge, Form owner)
+    /// <summary>Result of opening files from Explorer (command line, second start, drag &amp; drop).</summary>
+    sealed record Opened(List<string> Packs, List<string> Errors, List<string> Other);
+
+    Opened? pendingOpen;
+
+    public Api(Bridge bridge, Form owner, string[] startFiles)
     {
         this.bridge = bridge;
         this.owner = owner;
         installs = new InstallService(library, AppPaths.Installs, AppPaths.Cache, protectedDir: AppPaths.Data);
+        if (startFiles.Length > 0) pendingOpen = Import(startFiles);
+
+        // Files the app was started with; the UI asks once it is ready.
+        bridge.On("app.takeOpened", _ =>
+        {
+            var o = pendingOpen;
+            pendingOpen = null;
+            return o;
+        });
+        // Files dropped on the window: packs are imported, other files go back to the UI (the editor adds them as mods).
+        bridge.On("drop.files", _ => Import(bridge.Files));
 
         bridge.On("app.info", _ => new
         {
@@ -51,9 +67,12 @@ sealed class Api
         // Authoring (pack editor)
         bridge.On("packs.create", p => Create(Str(p, "name"), Int(p, "appId")));
         bridge.On("packs.save", p => { var id = Str(p, "id"); library.Save(id, Json.Parse<PackManifest>(p.GetProperty("pack"))); return (object?)null; });
-        bridge.On("packs.check", p => { var id = Str(p, "id"); return Authoring.Check(library, id, Json.Parse<PackManifest>(p.GetProperty("pack"))); });
+        bridge.On("packs.check", p => { var id = Str(p, "id"); return Authoring.Check(library, id, Json.Parse<PackManifest>(p.GetProperty("pack")), Path.Combine(AppPaths.Cache, "downloads")); });
         bridge.On("packs.files", p => library.Files(Str(p, "id")));
         bridge.On("packs.addFile", p => AddFile(Str(p, "id"), Int(p, "appId")));
+        bridge.On("packs.addFileFrom", p => AddFileFrom(Str(p, "id"), Str(p, "path"), Int(p, "appId")));
+        bridge.On("packs.stepOutputs", p => Authoring.StepOutputs(library, Str(p, "id"), Json.Parse<PackManifest>(p.GetProperty("pack")),
+            Int(p, "mod"), Int(p, "step"), Path.Combine(AppPaths.Cache, "downloads")));
         bridge.On("packs.inspectFile", p => InspectPackFile(Str(p, "id"), Str(p, "path"), Int(p, "appId")));
         bridge.On("packs.deleteFile", p => { library.DeleteFile(Str(p, "id"), Str(p, "path")); return (object?)null; });
         bridge.On("packs.setCover", p => SetCover(Str(p, "id")));
@@ -195,13 +214,49 @@ sealed class Api
         using var dialog = new OpenFileDialog
         {
             Title = "Файл мода",
-            Filter = "Моды (*.zip;*.dll;*.*)|*.zip;*.dll;*.*",
+            Filter = "Моды и установщики (*.zip;*.dll;*.exe;*.msi)|*.zip;*.dll;*.exe;*.msi|Все файлы|*.*",
         };
-        if (dialog.ShowDialog(owner) != DialogResult.OK) return null;
-        var rel = library.AddFile(id, dialog.FileName);
+        return dialog.ShowDialog(owner) == DialogResult.OK ? AddFileFrom(id, dialog.FileName, appId) : null;
+    }
+
+    object AddFileFrom(string id, string source, int appId)
+    {
+        if (!File.Exists(source)) throw new FileNotFoundException($"Файл не найден: {source}");
+        var rel = library.AddFile(id, source);
         var info = Authoring.Inspect(library.FilePath(id, rel), GameDir(appId));
         info.PackPath = "{pack}/" + rel;
         return info;
+    }
+
+    /// <summary>Opens files from Explorer in the running window (second start / double click).</summary>
+    public void OpenFiles(List<string> files)
+    {
+        if (files.Count == 0) return;
+        bridge.Emit("opened", Import(files));
+    }
+
+    Opened Import(IEnumerable<string> paths)
+    {
+        var result = new Opened(new(), new(), new());
+        foreach (var path in paths)
+        {
+            bool isPack = path.EndsWith(PackLibrary.Extension, StringComparison.OrdinalIgnoreCase)
+                          || (Directory.Exists(path) && File.Exists(Path.Combine(path, PackLibrary.ManifestName)));
+            if (!isPack)
+            {
+                if (File.Exists(path)) result.Other.Add(path);
+                continue;
+            }
+            try
+            {
+                result.Packs.Add(library.Import(path).Id);
+            }
+            catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                result.Errors.Add($"{Path.GetFileName(path)}: {e.Message}");
+            }
+        }
+        return result;
     }
 
     object InspectPackFile(string id, string path, int appId)

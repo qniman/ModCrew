@@ -36,6 +36,11 @@ public static class Downloader
             {
                 if (!response.IsSuccessStatusCode)
                     throw new HttpRequestException($"Сервер ответил {(int)response.StatusCode} {response.ReasonPhrase} на {url}");
+                // Download buttons on sites are often pages, not files.
+                var media = response.Content.Headers.ContentType?.MediaType;
+                if (media is "text/html" or "application/xhtml+xml")
+                    throw new InvalidDataException(
+                        "По этой ссылке открывается веб-страница, а не файл. Скачай файл сам и добавь его через «Мод из файла».");
                 var length = response.Content.Headers.ContentLength;
                 await using var input = await response.Content.ReadAsStreamAsync(cancel);
                 await using var output = File.Create(partial);

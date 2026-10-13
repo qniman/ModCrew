@@ -1,4 +1,4 @@
-import { call, on } from './api.js';
+import { call, callWithFiles, on } from './api.js';
 
 /** Global UI state. Components read it directly; actions below change it. */
 export const app = $state({
@@ -39,6 +39,37 @@ export async function refresh(refreshGames = false) {
 export async function init() {
   app.info = await call('app.info').catch(() => null);
   await refresh();
+  // Started by double-clicking a .modcrew file.
+  const opened = await call('app.takeOpened').catch(() => null);
+  if (opened) await showOpened(opened);
+}
+
+/** The editor registers here to receive dropped mod files. */
+export const dropTarget = { handler: null };
+
+/** Result of opening files from Explorer: import packs, report errors, pass other files on. */
+async function showOpened({ packs, errors, other }) {
+  for (const e of errors) toast(`Не получилось добавить сборку.\n${e}`, 'error');
+  if (packs.length) {
+    await refresh();
+    const view = app.packs.find((p) => p.pack.id === packs[packs.length - 1]);
+    toast(packs.length > 1 ? `Добавлено сборок: ${packs.length}` : `Сборка «${view?.pack.name ?? packs[0]}» добавлена`, 'ok');
+    await navigate('packs', packs[packs.length - 1]);
+  }
+  if (other.length) {
+    if (dropTarget.handler) dropTarget.handler(other);
+    else toast('Это не сборка ModCrew (.modcrew).\nЧтобы добавить файл мода в свою сборку — открой её редактор и перетащи файл туда.', 'info');
+  }
+}
+
+on('opened', showOpened);
+
+export async function dropFiles(files) {
+  try {
+    await showOpened(await callWithFiles('drop.files', null, files));
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 on('install.progress', (p) => {

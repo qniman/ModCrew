@@ -37,6 +37,16 @@ export function call(method, params) {
   });
 }
 
+/** Like call(), but also hands the host the dropped File objects (it gets their real paths). */
+export function callWithFiles(method, params, files) {
+  if (!web) return mock.call(method, { ...params, names: [...files].map((f) => f.name) }, (event, data) => dispatch({ event, data }));
+  const id = `r${++seq}`;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    web.postMessageWithAdditionalObjects({ id, method, params: params ?? null }, files);
+  });
+}
+
 /** Subscribes to a host event; returns an unsubscribe function. */
 export function on(event, cb) {
   if (!listeners.has(event)) listeners.set(event, new Set());

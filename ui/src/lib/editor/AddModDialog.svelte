@@ -5,8 +5,8 @@
   import PathField from './PathField.svelte';
   import Icon from '../Icon.svelte';
 
-  /** mode: 'file' | 'url'; append: add steps to an existing mod instead of creating one. */
-  let { mode, packId, appId, append = false, onclose, onadd } = $props();
+  /** mode: 'file' (pick) | 'drop' (path given) | 'url'; append: add steps to an existing mod instead of creating one. */
+  let { mode, path = null, packId, appId, append = false, onclose, onadd } = $props();
 
   // svelte-ignore state_referenced_locally
   let stage = $state(mode === 'url' ? 'url' : 'busy'); // mode never changes while open
@@ -18,8 +18,12 @@
   let to = $state('{game}');
   let name = $state('');
   let version = $state('');
+  let action = $state('place'); // place | run
+  let run = $state(''); // program inside an archive
+  let args = $state('');
 
-  let preview = $derived(info ? buildSteps(info, from, to) : []);
+  let canRun = $derived(info ? (info.kind === 'zip' ? info.executables.length > 0 : /\.(exe|msi)$/i.test(info.name)) : false);
+  let preview = $derived(info ? buildSteps(info, { action, from, to, run, args }) : []);
   let tree = $derived(
     (info?.dirs ?? []).slice(0, 400).map((d) => ({ path: d, depth: d.split('/').length - 1, label: d.split('/').pop() })),
   );
@@ -28,6 +32,8 @@
     info = result;
     from = result.suggestFrom ?? '';
     to = result.suggestTo ?? '{game}';
+    action = result.suggestAction ?? 'place';
+    run = result.suggestRun ?? result.executables?.[0] ?? '';
     const g = guessName(result.name);
     name = g.name;
     version = g.version;
@@ -35,9 +41,11 @@
   }
 
   onMount(async () => {
-    if (mode !== 'file') return;
+    if (mode === 'url') return;
     try {
-      const result = await call('packs.addFile', { id: packId, appId });
+      const result = mode === 'drop'
+        ? await call('packs.addFileFrom', { id: packId, path, appId })
+        : await call('packs.addFile', { id: packId, appId });
       if (!result) return onclose();
       accept(result);
     } catch (e) {
@@ -142,7 +150,46 @@
           </div>
         {/if}
 
-        {#if info.kind === 'zip'}
+        <div class="field">
+          <span class="lbl">Что сделать с файлом</span>
+          <div class="choices">
+            <button class="choice" class:sel={action === 'place'} onclick={() => (action = 'place')}>
+              <span class="c-ic"><Icon name="folder" size={18} /></span>
+              <b>Положить в папку игры</b>
+              <span>Файлы мода копируются в игру. «Удалить из игры» уберёт их начисто.</span>
+            </button>
+            <button class="choice" class:sel={action === 'run'} disabled={!canRun} onclick={() => (action = 'run')}>
+              <span class="c-ic run"><Icon name="play" size={18} /></span>
+              <b>Запустить установщик</b>
+              <span>{canRun ? 'Для модов со своим установщиком (BeamMP и т. п.). Друзья пройдут его сами.' : 'В файле нет программы (.exe или .msi).'}</span>
+            </button>
+          </div>
+        </div>
+
+        {#if action === 'run'}
+          {#if info.kind === 'zip'}
+            <div class="field">
+              <span class="lbl">Какую программу запустить</span>
+              <div class="tree">
+                {#each info.executables as exe}
+                  <label class="node" class:sel={run === exe}>
+                    <input type="radio" bind:group={run} value={exe} /> <Icon name="play" size={14} /> {exe}
+                  </label>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          <label class="field">
+            <span class="lbl">Аргументы — необязательно</span>
+            <input class="mono" bind:value={args} placeholder="обычно не нужны" />
+          </label>
+          <div class="note">
+            <Icon name="alert" size={15} />
+            <span>Установщик ставит программу сам — ModCrew не сможет её удалить. Друзья увидят это заранее, а удалять будут через «Параметры → Приложения».</span>
+          </div>
+        {/if}
+
+        {#if action === 'place' && info.kind === 'zip'}
           <div class="field">
             <span class="lbl">Что взять из архива</span>
             <div class="tree">
@@ -159,13 +206,15 @@
           </div>
         {/if}
 
-        <div class="field">
-          <span class="lbl">Куда положить {info.kind === 'zip' ? (from ? `папку «${from.split('/').pop()}» (её содержимое)` : 'содержимое архива') : 'файл'}</span>
-          <PathField bind:value={to} kind="path-write" {packId} {appId} />
-          {#if info.suggestTo === to && info.suggestFrom === from}
-            <span class="hint ok"><Icon name="sparkle" size={12} /> Подобрано по структуре архива и папки игры</span>
-          {/if}
-        </div>
+        {#if action === 'place'}
+          <div class="field">
+            <span class="lbl">Куда положить {info.kind === 'zip' ? (from ? `папку «${from.split('/').pop()}» (её содержимое)` : 'содержимое архива') : 'файл'}</span>
+            <PathField bind:value={to} kind="path-write" {packId} {appId} />
+            {#if info.suggestTo === to && info.suggestFrom === from}
+              <span class="hint ok"><Icon name="sparkle" size={12} /> Подобрано по структуре архива и папки игры</span>
+            {/if}
+          </div>
+        {/if}
 
         <div class="field">
           <span class="lbl">Получатся шаги</span>
@@ -176,7 +225,7 @@
       </div>
       <footer>
         <button class="btn ghost" onclick={cancel}>Отмена</button>
-        <button class="btn primary" disabled={!to} onclick={add}><Icon name="plus" size={16} /> {append ? 'Добавить шаги' : 'Добавить мод'}</button>
+        <button class="btn primary" disabled={action === 'place' ? !to : info.kind === 'zip' && !run} onclick={add}><Icon name="plus" size={16} /> {append ? 'Добавить шаги' : 'Добавить мод'}</button>
       </footer>
     {/if}
   </div>
@@ -225,6 +274,24 @@
   .node input { accent-color: var(--accent); margin: 0; }
   .node b { color: var(--text); font-weight: 600; }
 
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .choice {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; cursor: pointer;
+    padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-2);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .choice:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.2); }
+  .choice.sel { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15); }
+  .choice:disabled { opacity: 0.45; cursor: default; }
+  .choice b { font-size: 13.5px; }
+  .choice span:not(.c-ic) { font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .c-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: rgba(96, 165, 250, 0.14); color: #60a5fa; margin-bottom: 4px; }
+  .c-ic.run { background: rgba(251, 146, 60, 0.14); color: #fb923c; }
+  .note {
+    display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.5;
+    color: #fcd9a8; background: rgba(251, 146, 60, 0.08); border: 1px solid rgba(251, 146, 60, 0.25);
+  }
+  .note :global(svg) { flex: none; margin-top: 2px; color: #fb923c; }
   .preview { margin: 0; padding: 10px 12px 10px 32px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
   .preview li { padding: 2px 0; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
 

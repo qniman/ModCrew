@@ -12,6 +12,7 @@
     <Product>ModCrew</Product>
     <Authors>qniman</Authors>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <UiDir>$(MSBuildThisFileDirectory)..\..\ui\</UiDir>
   </PropertyGroup>
 
@@ -37,10 +38,11 @@
     <Exec Command="npm run build" WorkingDirectory="$(UiDir)" />
   </Target>
 
+  <!-- The built UI is embedded into the exe (served by MainForm.ServeUi), so the app is a single file. -->
   <Target Name="IncludeUi" AfterTargets="BuildUi" BeforeTargets="BeforeBuild">
     <ItemGroup>
       <_UiFile Include="$(UiDir)dist\**\*" />
-      <Content Include="@(_UiFile)" Link="wwwroot\%(_UiFile.RecursiveDir)%(_UiFile.Filename)%(_UiFile.Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+      <EmbeddedResource Include="@(_UiFile)" LogicalName="wwwroot/%(_UiFile.RecursiveDir)%(_UiFile.Filename)%(_UiFile.Extension)" WithCulture="false" />
     </ItemGroup>
   </Target>
 

@@ -64,7 +64,7 @@ const mockZip = (extra) => ({
   size: 2_457_600, kind: 'zip', fileCount: 14,
   topLevel: ['BetterSatsuma-2.1'],
   dirs: ['BetterSatsuma-2.1', 'BetterSatsuma-2.1/Mods', 'BetterSatsuma-2.1/Mods/Assets', 'BetterSatsuma-2.1/Mods/Assets/BetterSatsuma', 'BetterSatsuma-2.1/docs'],
-  suggestFrom: 'BetterSatsuma-2.1', suggestTo: '{game}',
+  suggestFrom: 'BetterSatsuma-2.1', suggestTo: '{game}', executables: [], suggestAction: 'place',
   ...extra,
 });
 
@@ -148,6 +148,17 @@ export const mock = {
         }
         return mockZip({ url: params.url, sha256: '3f2a…e91c', name: params.url.split('/').pop() || 'mod.zip' });
       case 'packs.deleteFile': return null;
+      case 'app.takeOpened': return null;
+      case 'drop.files': {
+        const packsIn = params.names.filter((n) => n.endsWith('.modcrew'));
+        return { packs: [], errors: packsIn.map((n) => `${n}: в браузерном режиме импорт недоступен`), other: params.names.filter((n) => !n.endsWith('.modcrew')) };
+      }
+      case 'packs.addFileFrom':
+        await wait(300);
+        return /\.exe$/i.test(params.path)
+          ? { name: params.path, size: 4_200_000, kind: 'file', dirs: [], topLevel: [], executables: [], fileCount: 0, packPath: `{pack}/files/${params.path}`, suggestAction: 'run', suggestTo: '{game}', suggestFrom: '' }
+          : mockZip({ packPath: `{pack}/files/${params.path}`, name: params.path, executables: ['BeamMP_Installer.exe'], topLevel: ['BeamMP_Installer.exe'], dirs: [], fileCount: 1, suggestAction: 'run', suggestRun: 'BeamMP_Installer.exe', suggestFrom: '' });
+      case 'packs.stepOutputs': return ['unpack-beammp/BeamMP_Installer.exe', 'unpack-beammp/readme.txt'];
       case 'paths.pick': return '{game}/Mods';
       case 'packs.importFile':
       case 'packs.importFolder':
