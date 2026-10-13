@@ -48,6 +48,18 @@ sealed class Api
         bridge.On("packs.remove", p => RemovePack(Str(p, "id")));
         bridge.On("packs.openFolder", p => OpenFolder(library.DirOf(Str(p, "id"))));
 
+        // Authoring (pack editor)
+        bridge.On("packs.create", p => Create(Str(p, "name"), Int(p, "appId")));
+        bridge.On("packs.save", p => { var id = Str(p, "id"); library.Save(id, Json.Parse<PackManifest>(p.GetProperty("pack"))); return (object?)null; });
+        bridge.On("packs.check", p => { var id = Str(p, "id"); return Authoring.Check(library, id, Json.Parse<PackManifest>(p.GetProperty("pack"))); });
+        bridge.On("packs.files", p => library.Files(Str(p, "id")));
+        bridge.On("packs.addFile", p => AddFile(Str(p, "id"), Int(p, "appId")));
+        bridge.On("packs.inspectFile", p => InspectPackFile(Str(p, "id"), Str(p, "path"), Int(p, "appId")));
+        bridge.On("packs.deleteFile", p => { library.DeleteFile(Str(p, "id"), Str(p, "path")); return (object?)null; });
+        bridge.On("packs.setCover", p => SetCover(Str(p, "id")));
+        bridge.OnAsync("packs.probeUrl", p => ProbeUrl(Str(p, "url"), Int(p, "appId")));
+        bridge.On("paths.pick", p => PickPath(Int(p, "appId"), Str(p, "kind")));
+
         bridge.OnAsync("install.run", p => Install(Str(p, "id")));
         bridge.On("install.uninstall", p => Uninstall(Str(p, "id")));
 
@@ -147,7 +159,7 @@ sealed class Api
             return new
             {
                 pack = p,
-                coverUrl = p.Cover == null ? null : $"https://{PacksHost}/{p.Id}/{p.Cover.Replace('\\', '/')}?v={Uri.EscapeDataString(p.Version)}",
+                coverUrl = CoverUrl(p),
                 game = new
                 {
                     appId = p.Game.SteamAppId,
@@ -158,6 +170,120 @@ sealed class Api
                 installed = record == null ? null : new { version = record.Version, complete = record.Complete, at = record.InstalledAt },
             };
         }).ToList();
+    }
+
+    string? CoverUrl(PackManifest p)
+    {
+        if (p.Cover == null) return null;
+        var file = Path.Combine(library.DirOf(p.Id), p.Cover);
+        // Cache-buster: the cover file can be replaced under the same name.
+        var stamp = File.Exists(file) ? File.GetLastWriteTimeUtc(file).Ticks : 0;
+        return $"https://{PacksHost}/{p.Id}/{p.Cover.Replace('\\', '/')}?v={stamp}";
+    }
+
+    // ---------------------------------------------------------------- authoring
+
+    object Create(string name, int appId)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new InvalidDataException("Введи название сборки.");
+        var game = SteamGames().FirstOrDefault(g => g.AppId == appId);
+        return library.Create(name, appId, game?.Name, Environment.UserName).Id;
+    }
+
+    object? AddFile(string id, int appId)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Файл мода",
+            Filter = "Моды (*.zip;*.dll;*.*)|*.zip;*.dll;*.*",
+        };
+        if (dialog.ShowDialog(owner) != DialogResult.OK) return null;
+        var rel = library.AddFile(id, dialog.FileName);
+        var info = Authoring.Inspect(library.FilePath(id, rel), GameDir(appId));
+        info.PackPath = "{pack}/" + rel;
+        return info;
+    }
+
+    object InspectPackFile(string id, string path, int appId)
+    {
+        var rel = path.Replace('\\', '/');
+        if (rel.StartsWith("{pack}/", StringComparison.OrdinalIgnoreCase)) rel = rel["{pack}/".Length..];
+        var info = Authoring.Inspect(library.FilePath(id, rel), GameDir(appId));
+        info.PackPath = "{pack}/" + rel;
+        return info;
+    }
+
+    object? SetCover(string id)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Обложка сборки",
+            Filter = "Картинки (*.jpg;*.jpeg;*.png;*.webp)|*.jpg;*.jpeg;*.png;*.webp",
+        };
+        if (dialog.ShowDialog(owner) != DialogResult.OK) return null;
+        var cover = library.SetCover(id, dialog.FileName);
+        var pack = library.Get(id);
+        pack.Cover = cover;
+        return new { cover, url = CoverUrl(pack) };
+    }
+
+    /// <summary>Downloads a URL once so the editor can fill in sha256 and show what is inside.</summary>
+    async Task<object?> ProbeUrl(string url, int appId)
+    {
+        Downloader.RequireHttps(url);
+        var downloads = Path.Combine(AppPaths.Cache, "downloads");
+        var temp = Path.Combine(downloads, "probe-" + Guid.NewGuid().ToString("N")[..8]);
+        var sha = await Downloader.DownloadAsync(url, temp,
+            (done, total) => bridge.Emit("probe.progress", new { done, total }), CancellationToken.None);
+        // Keep it in the install cache: installing the pack afterwards will not download again.
+        var cached = Path.Combine(downloads, sha);
+        File.Move(temp, cached, overwrite: true);
+        var info = Authoring.Inspect(cached, GameDir(appId));
+        info.Name = Downloader.FileNameFromUrl(url);
+        info.Sha256 = sha;
+        info.Url = url;
+        return info;
+    }
+
+    /// <summary>Folder/file picker that returns a portable path like "{game}/Mods".</summary>
+    object? PickPath(int appId, string kind)
+    {
+        var game = GameDir(appId);
+        string? picked;
+        if (kind == "file")
+        {
+            using var dialog = new OpenFileDialog { Title = "Выбери файл", InitialDirectory = game ?? "" };
+            picked = dialog.ShowDialog(owner) == DialogResult.OK ? dialog.FileName : null;
+        }
+        else
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = "Выбери папку (внутри папки игры)", UseDescriptionForTitle = true, InitialDirectory = game ?? "",
+            };
+            picked = dialog.ShowDialog(owner) == DialogResult.OK ? dialog.SelectedPath : null;
+        }
+        if (picked == null) return null;
+
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var roots = new List<(string var, string? dir)>
+        {
+            ("game", game),
+            ("documents", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)),
+            ("appdata", Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)),
+            ("localappdata", Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)),
+            ("locallow", Path.Combine(profile, "AppData", "LocalLow")),
+        };
+        var full = Path.GetFullPath(picked).TrimEnd('\\');
+        foreach (var (name, dir) in roots)
+        {
+            if (dir == null) continue;
+            var root = Path.GetFullPath(dir).TrimEnd('\\');
+            if (full.Equals(root, StringComparison.OrdinalIgnoreCase)) return $"{{{name}}}";
+            if (full.StartsWith(root + "\\", StringComparison.OrdinalIgnoreCase))
+                return $"{{{name}}}/" + full[(root.Length + 1)..].Replace('\\', '/');
+        }
+        throw new InvalidOperationException("Это место вне папки игры и папок сохранений — у друзей такого пути не будет.");
     }
 
     object? ImportFile()

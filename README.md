@@ -19,6 +19,11 @@ dotnet publish src/ModCrew -c Release -r win-x64 --self-contained -o publish   #
 **Разработка интерфейса:** `cd ui && npm run dev`: страница на http://localhost:5173 с мок-данными
 (`ui/src/lib/mock.js`), без exe. Чтобы exe грузил живой dev-сервер: `set MODCREW_DEV_URL=http://localhost:5173`.
 
+## Как сделать сборку
+«Сборки» → «Новая сборка» → выбрал игру → «Мод из файла» (zip/dll с диска, в том числе скачанные с Nexus)
+или «По ссылке» (прямая https-ссылка). ModCrew заглянет в архив, подскажет, куда класть, и сам составит шаги;
+шаги можно поправить вручную. Ошибки подсвечиваются сразу. «Установить и проверить» → «Сохранить .modcrew» → друзьям.
+
 ## Формат сборки
 Папка с `pack.json` (+ обложка, + `files/` с модами). `.modcrew` = эта папка в zip.
 Пример: [`samples/msc-demo`](samples/msc-demo/pack.json).

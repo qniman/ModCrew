@@ -18,7 +18,7 @@
       <h3>{app.ask.title}</h3>
       <p>{app.ask.text}</p>
       <div class="actions">
-        <button class="btn ghost" onclick={() => answer(false)}>Отмена</button>
+        <button class="btn ghost" onclick={() => answer(false)}>{app.ask.cancelLabel ?? 'Отмена'}</button>
         <button class="btn primary" class:danger-btn={app.ask.danger} onclick={() => answer(true)}>{app.ask.okLabel ?? 'OK'}</button>
       </div>
     </div>

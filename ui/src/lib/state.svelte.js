@@ -4,6 +4,8 @@ import { call, on } from './api.js';
 export const app = $state({
   page: 'packs', // packs | games | about
   packId: null, // open pack detail
+  editId: null, // pack open in the editor
+  editorDirty: false,
   info: null,
   packs: [],
   games: [],
@@ -52,8 +54,19 @@ on('install.progress', (p) => {
 on('ask', (q) => (app.ask = { ...q, host: true }));
 
 /** UI-side confirm that returns a promise. */
-export function confirm(title, text, okLabel = 'OK', danger = false) {
-  return new Promise((resolve) => (app.ask = { title, text, okLabel, danger, resolve }));
+export function confirm(title, text, okLabel = 'OK', danger = false, cancelLabel = 'Отмена') {
+  return new Promise((resolve) => (app.ask = { title, text, okLabel, danger, cancelLabel, resolve }));
+}
+
+/** Navigation that respects unsaved editor changes. */
+export async function navigate(page, packId = null, editId = null) {
+  if (app.editId && app.editorDirty && editId !== app.editId) {
+    if (!(await confirm('Выйти без сохранения?', 'В редакторе есть несохранённые изменения. Они пропадут.', 'Выйти', true))) return;
+  }
+  app.editorDirty = false;
+  app.page = page;
+  app.packId = packId;
+  app.editId = editId;
 }
 
 export function answer(ok) {

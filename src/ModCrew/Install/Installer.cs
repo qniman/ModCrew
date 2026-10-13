@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text;
 using ModCrew.Packs;
 
@@ -21,7 +20,6 @@ public sealed class Installer
     readonly IProgress<InstallProgress> progress;
     readonly AskUser ask;
     readonly CancellationToken cancel;
-    static readonly HttpClient Http = CreateHttp();
 
     int stepNo, totalSteps;
     string modName = "";
@@ -36,13 +34,6 @@ public sealed class Installer
         this.progress = progress;
         this.ask = ask;
         this.cancel = cancel;
-    }
-
-    static HttpClient CreateHttp()
-    {
-        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("ModCrew/0.1");
-        return http;
     }
 
     /// <summary>Runs all steps. Throws on the first failure; the caller rolls back via the journal.</summary>
@@ -110,8 +101,7 @@ public sealed class Installer
     async Task Download(Step s)
     {
         var url = Need(s.Url, "url");
-        if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Скачивать можно только по https://");
+        Downloader.RequireHttps(url);
         var target = paths.ForWrite(s.SaveAs ?? FileNameFromUrl(url));
         if (!paths.IsInWork(target))
             throw new InvalidDataException("download сохраняет только во временную папку; дальше используй copy/extract.");
@@ -125,37 +115,17 @@ public sealed class Installer
             return;
         }
 
-        var partial = target + ".part";
-        using (var response = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancel))
+        var name = Path.GetFileName(target);
+        var actual = await Downloader.DownloadAsync(url, target, (done, length) =>
         {
-            response.EnsureSuccessStatusCode();
-            var length = response.Content.Headers.ContentLength;
-            await using var input = await response.Content.ReadAsStreamAsync(cancel);
-            await using var output = File.Create(partial);
-            var buffer = new byte[81920];
-            long done = 0;
-            var lastReport = Stopwatch.StartNew();
-            int read;
-            while ((read = await input.ReadAsync(buffer, cancel)) > 0)
-            {
-                await output.WriteAsync(buffer.AsMemory(0, read), cancel);
-                done += read;
-                if (length > 0 && lastReport.ElapsedMilliseconds > 100)
-                {
-                    Report($"Скачиваю {Path.GetFileName(target)} — {done / 1048576.0:0.0} из {length / 1048576.0:0.0} МБ",
-                        (double)done / length.Value);
-                    lastReport.Restart();
-                }
-            }
-        }
-
-        var actual = Sha256Of(partial);
+            if (length > 0)
+                Report($"Скачиваю {name} — {done / 1048576.0:0.0} из {length / 1048576.0:0.0} МБ", (double)done / length.Value);
+        }, cancel);
         if (expected != null && actual != expected)
         {
-            File.Delete(partial);
+            File.Delete(target);
             throw new InvalidDataException("Скачанный файл не совпадает с ожидаемым (sha256). Возможно, автор обновил его по той же ссылке.");
         }
-        File.Move(partial, target, overwrite: true);
         if (expected != null)
         {
             Directory.CreateDirectory(downloadCache);
@@ -163,17 +133,7 @@ public sealed class Installer
         }
     }
 
-    public static string Sha256Of(string file)
-    {
-        using var stream = File.OpenRead(file);
-        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-    }
-
-    static string FileNameFromUrl(string url)
-    {
-        var name = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? Path.GetFileName(uri.LocalPath) : "";
-        return string.IsNullOrEmpty(name) ? "download.bin" : name;
-    }
+    static string FileNameFromUrl(string url) => Downloader.FileNameFromUrl(url);
 
     // ---------------------------------------------------------------- files
 

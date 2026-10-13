@@ -1,5 +1,5 @@
 <script>
-  import { app, refresh, run, confirm, installPack, statusOf, statusLabel, steamCdn } from '../lib/state.svelte.js';
+  import { app, refresh, run, confirm, installPack, statusOf, statusLabel, steamCdn, navigate } from '../lib/state.svelte.js';
   import { call } from '../lib/api.js';
   import Icon from '../lib/Icon.svelte';
   import Cover from '../lib/Cover.svelte';
@@ -135,7 +135,10 @@
         <div class="box">
           <h3>Поделиться</h3>
           <p>Сохрани сборку в файл и отправь друзьям — им останется нажать «Установить».</p>
-          <button class="btn" onclick={() => run('packs.export', { id: view.pack.id })}><Icon name="upload" size={16} /> Сохранить .modcrew</button>
+          <div class="box-actions">
+            <button class="btn" onclick={() => run('packs.export', { id: view.pack.id })}><Icon name="upload" size={16} /> Сохранить .modcrew</button>
+            <button class="btn ghost" onclick={() => navigate('packs', null, view.pack.id)}><Icon name="edit" size={16} /> Редактировать</button>
+          </div>
         </div>
         <div class="box links">
           <button class="btn ghost" onclick={() => run('games.open', { appId: view.game.appId })}><Icon name="folder" size={16} /> Папка игры</button>
@@ -225,6 +228,7 @@
   .box h3 { font-size: 14px; margin-bottom: 6px; }
   .box p { color: var(--muted); font-size: 13px; margin: 0 0 14px; line-height: 1.55; }
   .box p:last-child { margin: 0; }
+  .box-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .links { display: flex; flex-direction: column; gap: 2px; padding: 8px; }
   .links .btn { justify-content: flex-start; }
 

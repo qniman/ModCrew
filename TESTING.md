@@ -14,6 +14,22 @@
 - [ ] «Сохранить .modcrew» writes the file and opens Explorer on it; that file imports on another PC.
 - [ ] «Убрать из списка» is disabled while the pack is installed.
 
+## Pack editor
+- [ ] «Новая сборка»: name + game poster grid; «Создать» opens the editor; id is a transliterated slug.
+- [ ] Pack detail → «Редактировать» opens the editor with the pack's mods.
+- [ ] «Мод из файла» with a zip that has a wrapper folder (`Mod-1.0/Mods/…`): suggests that folder → `{game}`, name/version guessed from the file name; steps preview = extract + copy.
+- [ ] Same with a zip laid out like the game (`Mods/…`): whole archive → `{game}`, one extract step.
+- [ ] `.dll`: copy → `{game}/Mods/` when the game has a Mods folder.
+- [ ] Cancel in the wizard removes the copied file from the pack (no «не используется» warning).
+- [ ] «По ссылке» with a GitHub release URL: progress, sha256 filled, download step first. http:// is refused.
+- [ ] Step chips add an open, empty step; up/down/delete work; mods reorder by dragging the grip.
+- [ ] Path field menu: pack files list, «Добавить файл в сборку…», «Выбрать папку в игре…» returns `{game}/…`; a folder outside the game/user folders is refused with a message.
+- [ ] Problems update within a second: empty required field (red), missing pack file, absolute path, unknown `{var}`, unused file (with «Удалить»).
+- [ ] Unsaved dot in the top bar; leaving via sidebar/«Готово» asks before discarding.
+- [ ] Saving an installed pack offers a version bump; after it the pack shows «Есть обновление».
+- [ ] «Своя обложка» replaces the cover (card and detail show the new image right away).
+- [ ] «Установить и проверить» saves, opens the pack and installs.
+
 ## Install (use samples/msc-demo)
 - [ ] «Установить»: progress bar, step text, sidebar mini-progress, «Готово!», toast.
 - [ ] `<game>\ModCrew-demo\README.txt` and `settings.ini` (`[Demo] InstalledBy=ModCrew`) exist.

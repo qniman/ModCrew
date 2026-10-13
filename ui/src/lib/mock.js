@@ -59,6 +59,15 @@ const packs = [
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const mockFiles = {};
+const mockZip = (extra) => ({
+  size: 2_457_600, kind: 'zip', fileCount: 14,
+  topLevel: ['BetterSatsuma-2.1'],
+  dirs: ['BetterSatsuma-2.1', 'BetterSatsuma-2.1/Mods', 'BetterSatsuma-2.1/Mods/Assets', 'BetterSatsuma-2.1/Mods/Assets/BetterSatsuma', 'BetterSatsuma-2.1/docs'],
+  suggestFrom: 'BetterSatsuma-2.1', suggestTo: '{game}',
+  ...extra,
+});
+
 function packView(p) {
   const g = games.find((x) => x.appId === p.pack.game.steamAppId);
   return { ...p, game: { appId: p.pack.game.steamAppId, name: g?.name ?? p.pack.game.name, found: !!g, images: images(p.pack.game.steamAppId) } };
@@ -103,6 +112,43 @@ export const mock = {
       case 'install.run': return install(params.id, emit);
       case 'install.uninstall': packs.find((x) => x.pack.id === params.id).installed = null; return null;
       case 'packs.remove': packs.splice(packs.findIndex((x) => x.pack.id === params.id), 1); return null;
+      case 'packs.create': {
+        const id = params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `pack-${packs.length + 1}`;
+        const g = games.find((x) => x.appId === params.appId);
+        packs.push({ pack: { id, name: params.name, version: '1.0.0', author: 'you', game: { steamAppId: params.appId, name: g?.name }, mods: [] }, coverUrl: null, installed: null });
+        mockFiles[id] = [];
+        return id;
+      }
+      case 'packs.save': {
+        const p = packs.find((x) => x.pack.id === params.id);
+        p.pack = structuredClone(params.pack);
+        return null;
+      }
+      case 'packs.check': {
+        const out = [];
+        params.pack.mods.forEach((m, mi) => {
+          if (!m.steps.length) out.push({ level: 'warning', text: 'У мода нет шагов — он ничего не установит.', mod: mi });
+          m.steps.forEach((s, si) => {
+            if (s.action === 'copy' && (!s.from || !s.to)) out.push({ level: 'error', text: 'Не заполнено поле «что» или «куда».', mod: mi, step: si });
+            if (s.action === 'download' && !s.sha256) out.push({ level: 'warning', text: 'Нет sha256: если файл по ссылке поменяется, у друзей установится другая версия.', mod: mi, step: si });
+          });
+        });
+        return out;
+      }
+      case 'packs.files': return mockFiles[params.id] ?? ['files/MSCLoader.zip'];
+      case 'packs.addFile': {
+        await wait(400);
+        (mockFiles[params.id] ??= []).push('files/BetterSatsuma_v2.1.zip');
+        return mockZip({ packPath: '{pack}/files/BetterSatsuma_v2.1.zip', name: 'BetterSatsuma_v2.1.zip' });
+      }
+      case 'packs.probeUrl':
+        for (let d = 0; d <= 8; d++) {
+          emit('probe.progress', { done: d * 1048576, total: 8 * 1048576 });
+          await wait(150);
+        }
+        return mockZip({ url: params.url, sha256: '3f2a…e91c', name: params.url.split('/').pop() || 'mod.zip' });
+      case 'packs.deleteFile': return null;
+      case 'paths.pick': return '{game}/Mods';
       case 'packs.importFile':
       case 'packs.importFolder':
       case 'packs.export':

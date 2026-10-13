@@ -1,10 +1,11 @@
 <script>
   import { onMount } from 'svelte';
-  import { app, init } from './lib/state.svelte.js';
+  import { app, init, navigate } from './lib/state.svelte.js';
   import { isMock } from './lib/api.js';
   import Icon from './lib/Icon.svelte';
   import PacksPage from './pages/PacksPage.svelte';
   import PackDetail from './pages/PackDetail.svelte';
+  import PackEditor from './pages/PackEditor.svelte';
   import GamesPage from './pages/GamesPage.svelte';
   import AboutPage from './pages/AboutPage.svelte';
   import AskDialog from './lib/AskDialog.svelte';
@@ -18,10 +19,7 @@
     { id: 'about', label: 'Как это работает', icon: 'info' },
   ];
 
-  function go(page) {
-    app.page = page;
-    app.packId = null;
-  }
+  const go = (page) => navigate(page);
 
   let installedCount = $derived(app.packs.filter((p) => p.installed).length);
 </script>
@@ -50,7 +48,7 @@
 
     {#if app.install && !app.install.done && !app.install.error}
       {@const view = app.packs.find((p) => p.pack.id === app.install.packId)}
-      <button class="mini-progress" onclick={() => { app.page = 'packs'; app.packId = app.install.packId; }}>
+      <button class="mini-progress" onclick={() => navigate('packs', app.install.packId)}>
         <div class="mp-title">Устанавливаю {view?.pack.name ?? ''}</div>
         <div class="mp-bar"><div style:width="{app.install.total ? (100 * app.install.step) / app.install.total : 5}%"></div></div>
       </button>
@@ -63,7 +61,9 @@
   </aside>
 
   <main>
-    {#if app.page === 'packs' && app.packId}
+    {#if app.page === 'packs' && app.editId && app.packs.some((p) => p.pack.id === app.editId)}
+      {#key app.editId}<PackEditor />{/key}
+    {:else if app.page === 'packs' && app.packId}
       <PackDetail />
     {:else if app.page === 'packs'}
       <PacksPage />

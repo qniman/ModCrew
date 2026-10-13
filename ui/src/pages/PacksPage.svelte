@@ -2,8 +2,10 @@
   import { app, refresh, run, statusOf, statusLabel, steamCdn } from '../lib/state.svelte.js';
   import Icon from '../lib/Icon.svelte';
   import Cover from '../lib/Cover.svelte';
+  import NewPackDialog from '../lib/editor/NewPackDialog.svelte';
 
   let filter = $state('all');
+  let creating = $state(false);
 
   let counts = $derived({
     all: app.packs.length,
@@ -48,6 +50,9 @@
     <div class="head-actions">
       <button class="btn ghost" onclick={importFolder} title="Для авторов: папка с pack.json">
         <Icon name="folder" size={16} /> Из папки
+      </button>
+      <button class="btn" onclick={() => (creating = true)}>
+        <Icon name="edit" size={16} /> Новая сборка
       </button>
       <button class="btn primary" onclick={importFile}>
         <Icon name="plus" size={16} /> Добавить сборку
@@ -97,10 +102,15 @@
         Попроси друга прислать файл <code>.modcrew</code> и нажми «Добавить сборку».<br />
         Потом выбери её и жми «Установить» — ModCrew всё сделает сам.
       </p>
-      <button class="btn primary big" onclick={importFile}><Icon name="plus" /> Добавить сборку</button>
+      <div class="empty-actions">
+        <button class="btn primary big" onclick={importFile}><Icon name="plus" /> Добавить сборку</button>
+        <button class="btn big" onclick={() => (creating = true)}><Icon name="edit" /> Сделать свою</button>
+      </div>
     </div>
   {/if}
 </div>
+
+{#if creating}<NewPackDialog onclose={() => (creating = false)} />{/if}
 
 <style>
   .page { padding: 34px 40px 48px; max-width: 1400px; margin: 0 auto; }
@@ -158,5 +168,6 @@
   }
   .empty h2 { font-size: 22px; margin-bottom: 8px; }
   .empty p { color: var(--muted); margin: 0 0 26px; max-width: 460px; line-height: 1.6; }
+  .empty-actions { display: flex; gap: 10px; }
   code { background: rgba(255, 255, 255, 0.08); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
 </style>

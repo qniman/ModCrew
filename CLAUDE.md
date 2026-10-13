@@ -19,6 +19,9 @@ button, exact rollback. Friends are not PC-savvy: UI text must be simple, everyt
 | `Api.cs` | All bridge methods (`games.*`, `packs.*`, `install.*`, `shell.openUrl`) |
 | `Steam/` | Registry → `libraryfolders.vdf` → `appmanifest_*.acf`; cached images |
 | `Packs/` | `PackManifest` (pack.json, flat `Step`), `PackLibrary` (import folder/.modcrew, export) |
+| `Packs/Authoring.cs` | Editor helpers: `Slug`, `Inspect` (zip tree + where-to-put guess vs the game folder), `Check` (problems by mod/step) |
+| `Install/Downloader.cs` | Shared https download with progress + sha256 (installer and «Мод по ссылке» probe; probes land in the download cache) |
+| `ui/src/pages/PackEditor.svelte`, `ui/src/lib/editor/` | Editor: `steps.js` (field schema per action, step generation from the wizard, `_`-prefixed editor-only keys stripped on save), `StepCard`, `PathField`, `AddModDialog`, `NewPackDialog` |
 | `Install/` | `PathResolver` (path vars + allowed roots), `Journal` (created/backup entries, rollback), `Installer` (step actions), `InstallService` (one pack per game, auto-rollback on failure), `Ini` |
 | `ui/` | Svelte 5 (runes). `lib/api.js` bridge + `lib/mock.js` for browser dev, `lib/state.svelte.js` global state/actions, `pages/` |
 | `tests/ModCrew.Tests` | xunit: install/uninstall round-trip, rollback, path sandbox, parsers |
@@ -30,7 +33,11 @@ button, exact rollback. Friends are not PC-savvy: UI text must be simple, everyt
 - Bridge: sync handlers via `On`, async via `OnAsync` (don't merge them — a lambda returning null picked the Task overload).
 - Csproj builds the UI (`npm run build`) and links `ui/dist/**` into `wwwroot`; `-p:SkipUi=true` to skip.
 
+## Decisions
+- Nexus mods: the author downloads them and embeds the file in the pack («Мод из файла»); no manual-download step.
+- Files picked from disk are always embedded into `files/`. URLs only for direct https downloads (GitHub releases).
+- Saving from the editor rewrites pack.json (comments are lost).
+
 ## Next (agreed direction, not built)
-- Pack editor in the UI (create/edit packs and steps visually) instead of hand-written pack.json.
 - Hosting packs (GitHub repo/Releases) + update notifications; for now packs are files sent to friends.
 - File association for `.modcrew` (double-click to import), drag & drop import, 7z/rar, app icon, self-update.
